@@ -1,26 +1,136 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Franko OS dark-first palette */
+  --color-desktop: #060608;
+  --color-surface: #0e0e11;
+  --color-surface-2: #16161a;
+  --color-surface-3: #1d1d22;
+  --color-edge: rgba(255, 255, 255, 0.08);
+  --color-edge-strong: rgba(255, 255, 255, 0.16);
+  --color-ink: #ededf0;
+  --color-ink-dim: #9b9ba4;
+  --color-ink-faint: #62626c;
+  --color-accent: #34d399;
+  --color-accent-dim: rgba(52, 211, 153, 0.14);
+  --color-danger: #f87171;
+  --color-warn: #fbbf24;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-desktop);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: rgba(52, 211, 153, 0.3);
+}
+
+/* Desktop wallpaper: faint engineering grid + radial accent glow */
+.wallpaper {
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 50% -10%,
+      rgba(52, 211, 153, 0.06),
+      transparent 60%
+    ),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    48px 48px,
+    48px 48px;
+}
+
+/* Thin scrollbars inside windows */
+.os-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+.os-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.os-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(52, 211, 153, 0);
+  }
+}
+.status-dot {
+  animation: pulse-dot 2.4s ease-in-out infinite;
+}
+
+/* Hexagonal window controls — Franko OS's take on traffic lights */
+.hex {
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
+}
+
+/* Ambient wallpaper glow blobs — slow drift, GPU-friendly */
+.wallpaper-glow {
+  position: absolute;
+  width: 55vw;
+  height: 55vw;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.07;
+  will-change: transform;
+}
+.wallpaper-glow-a {
+  background: #34d399;
+  top: -25%;
+  left: -10%;
+  animation: drift-a 36s ease-in-out infinite alternate;
+}
+.wallpaper-glow-b {
+  background: #2dd4bf;
+  bottom: -30%;
+  right: -15%;
+  animation: drift-b 44s ease-in-out infinite alternate;
+}
+@keyframes drift-a {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(18vw, 12vh) scale(1.15);
+  }
+}
+@keyframes drift-b {
+  from {
+    transform: translate(0, 0) scale(1.1);
+  }
+  to {
+    transform: translate(-14vw, -10vh) scale(0.95);
+  }
+}
+
+@keyframes boot-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.boot-bar {
+  animation: boot-fill 1.5s ease-in-out forwards;
 }
