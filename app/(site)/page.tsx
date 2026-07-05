@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import Widget from "@/components/os/Widget";
 import { useDesktop } from "@/components/os/DesktopContext";
+import ClientDesktop from "@/components/portal/ClientDesktop";
+import { usePortalAuth } from "@/lib/portal/auth";
 
 const modules = [
   { icon: Globe, name: "Websites", status: "online" },
@@ -38,7 +40,17 @@ const activity = [
   "Weekly ranking report generated",
 ];
 
-export default function Dashboard() {
+export default function Home() {
+  const { ready, company } = usePortalAuth();
+
+  // Session resolves client-side behind the boot screen; render nothing
+  // until then so signed-in clients never flash the marketing hero.
+  if (!ready) return null;
+  if (company) return <ClientDesktop company={company} />;
+  return <MarketingDashboard />;
+}
+
+function MarketingDashboard() {
   const { openPalette } = useDesktop();
   const dashboardRef = useRef<HTMLElement>(null);
 

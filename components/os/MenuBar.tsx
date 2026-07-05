@@ -2,15 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Command, Hexagon, Search, Volume2, VolumeX } from "lucide-react";
+import {
+  Command,
+  LogIn,
+  LogOut,
+  Moon,
+  Search,
+  Sun,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import LogoMark from "./LogoMark";
 import { apps } from "@/lib/apps";
 import { useDesktop } from "./DesktopContext";
+import { usePortalAuth } from "@/lib/portal/auth";
+import { toolsFor } from "@/lib/portal/portal";
+import type { Company } from "@/lib/crm/types";
 import { playSound, setSoundsEnabled, soundsEnabled } from "@/lib/sound";
 
-type MenuItem = { label: string; href: string };
+type MenuItem = { label: string; href: string; newTab?: boolean };
 type Menu = { label: string; items: MenuItem[] };
 
-const menus: Menu[] = [
+const publicMenus: Menu[] = [
   {
     label: "File",
     items: [
@@ -21,7 +34,11 @@ const menus: Menu[] = [
   },
   {
     label: "Go",
-    items: apps.map((a) => ({ label: a.name, href: a.href })),
+    items: apps.map((a) => ({
+      label: a.name,
+      href: a.href,
+      newTab: a.newTab,
+    })),
   },
   {
     label: "Help",
@@ -31,6 +48,36 @@ const menus: Menu[] = [
     ],
   },
 ];
+
+/** Signed-in clients get their tools in Go and client actions in File. */
+function clientMenus(company: Company): Menu[] {
+  const tools = toolsFor(company);
+  return [
+    {
+      label: "File",
+      items: [
+        ...(tools.some((t) => t.id === "support")
+          ? [{ label: "New Support Request", href: "/portal/support" }]
+          : []),
+        { label: "Book a Call", href: "/contact" },
+      ],
+    },
+    {
+      label: "Go",
+      items: [
+        { label: "Dashboard", href: "/" },
+        ...tools.map((t) => ({ label: t.name, href: t.href })),
+      ],
+    },
+    {
+      label: "Help",
+      items: [
+        { label: "Documentation", href: "/resources" },
+        { label: "About Franko Labs", href: "/about" },
+      ],
+    },
+  ];
+}
 
 function Clock() {
   const [time, setTime] = useState<string>("");
@@ -82,11 +129,45 @@ function SoundToggle() {
   );
 }
 
+const THEME_KEY = "franko-os-theme";
+
+function ThemeToggle() {
+  const [light, setLight] = useState(false);
+
+  useEffect(() => {
+    setLight(document.documentElement.classList.contains("light"));
+  }, []);
+
+  return (
+    <button
+      aria-label={light ? "Switch to dark theme" : "Switch to light theme"}
+      title={light ? "Theme: light" : "Theme: dark"}
+      className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink-dim"
+      onClick={() => {
+        const next = !light;
+        document.documentElement.classList.toggle("light", next);
+        try {
+          localStorage.setItem(THEME_KEY, next ? "light" : "dark");
+        } catch {
+          // Storage may be unavailable — theme still applies for this visit.
+        }
+        setLight(next);
+        playSound("tap");
+      }}
+    >
+      {light ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </button>
+  );
+}
+
 export default function MenuBar() {
   const router = useRouter();
   const { openPalette } = useDesktop();
+  const { ready, company, signOut } = usePortalAuth();
   const [open, setOpen] = useState<string | null>(null);
   const barRef = useRef<HTMLElement>(null);
+
+  const menus = company ? clientMenus(company) : publicMenus;
 
   useEffect(() => {
     if (!open) return;
@@ -103,7 +184,7 @@ export default function MenuBar() {
       className="relative z-40 flex h-12 shrink-0 items-center gap-1 border-b border-edge bg-surface/80 px-4 backdrop-blur-md"
     >
       <div className="mr-3 flex items-center gap-2">
-        <Hexagon className="size-5 text-accent" strokeWidth={2} />
+        <LogoMark className="h-5 w-auto" />
         <span className="text-[15px] font-semibold tracking-tight">
           Franko OS
         </span>
@@ -133,7 +214,11 @@ export default function MenuBar() {
                     className="block w-full rounded-md px-3 py-2 text-left text-sm text-ink-dim transition-colors hover:bg-accent-dim hover:text-ink"
                     onClick={() => {
                       setOpen(null);
-                      router.push(item.href);
+                      if (item.newTab) {
+                        window.open(item.href, "_blank", "noopener");
+                      } else {
+                        router.push(item.href);
+                      }
                     }}
                   >
                     {item.label}
@@ -146,11 +231,40 @@ export default function MenuBar() {
       </nav>
 
       <div className="ml-auto flex items-center gap-3">
+        <ThemeToggle />
         <SoundToggle />
-        <span className="hidden items-center gap-2 text-xs text-ink-dim md:flex">
-          <span className="status-dot size-2 rounded-full bg-accent" />
-          All systems online
-        </span>
+        {company ? (
+          <span className="hidden items-center gap-2 md:flex">
+            <span className="flex items-center gap-2 rounded-full border border-edge bg-surface-2 py-1 pl-2.5 pr-1.5 text-xs text-ink-dim">
+              <span className="status-dot size-2 rounded-full bg-accent" />
+              {company.name}
+              <button
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={signOut}
+                className="rounded-full p-1 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink"
+              >
+                <LogOut className="size-3.5" />
+              </button>
+            </span>
+          </span>
+        ) : (
+          <>
+            <span className="hidden items-center gap-2 text-xs text-ink-dim md:flex">
+              <span className="status-dot size-2 rounded-full bg-accent" />
+              All systems online
+            </span>
+            {ready && (
+              <button
+                className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-xs text-ink-dim transition-colors hover:border-edge-strong hover:text-ink"
+                onClick={() => router.push("/login")}
+              >
+                <LogIn className="size-3.5" />
+                Sign in
+              </button>
+            )}
+          </>
+        )}
         <button
           className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-xs text-ink-dim transition-colors hover:border-edge-strong hover:text-ink"
           onClick={openPalette}

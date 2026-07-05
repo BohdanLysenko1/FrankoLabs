@@ -20,11 +20,33 @@
   --color-warn: #fbbf24;
 }
 
+/* Light theme — toggled via .light on <html> (MenuBar), persisted in localStorage */
+html.light {
+  --color-desktop: #dfe0e4;
+  --color-surface: #f4f4f6;
+  --color-surface-2: #ececef;
+  --color-surface-3: #e2e2e6;
+  --color-edge: rgba(20, 20, 30, 0.1);
+  --color-edge-strong: rgba(20, 20, 30, 0.2);
+  --color-ink: #212127;
+  --color-ink-dim: #5d5d68;
+  --color-ink-faint: #94949e;
+  --color-accent: #047857;
+  --color-accent-dim: rgba(4, 120, 87, 0.1);
+  --color-danger: #dc2626;
+  --color-warn: #b45309;
+}
+
 html,
 body {
   height: 100%;
   overscroll-behavior: none;
   color-scheme: dark;
+}
+
+html.light,
+html.light body {
+  color-scheme: light;
 }
 
 body {
@@ -35,6 +57,14 @@ body {
 
 ::selection {
   background: rgba(52, 211, 153, 0.3);
+}
+.light ::selection {
+  background: rgba(4, 120, 87, 0.22);
+}
+
+/* Dock/window/menu shadows are tuned for dark; lighten them in light mode */
+.light [class*="shadow-black/"] {
+  --tw-shadow-color: rgba(10, 10, 20, 0.16);
 }
 
 /* Desktop wallpaper: faint engineering grid + radial accent glow */
@@ -53,6 +83,20 @@ body {
     48px 48px;
 }
 
+.light .wallpaper {
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 50% -10%,
+      rgba(4, 120, 87, 0.04),
+      transparent 60%
+    ),
+    linear-gradient(rgba(20, 20, 30, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 20, 30, 0.045) 1px, transparent 1px);
+}
+.light .wallpaper-glow {
+  opacity: 0.05;
+}
+
 /* Thin scrollbars inside windows */
 .os-scroll {
   scrollbar-width: thin;
@@ -64,6 +108,12 @@ body {
 .os-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
+}
+.light .os-scroll {
+  scrollbar-color: rgba(10, 10, 20, 0.25) transparent;
+}
+.light .os-scroll::-webkit-scrollbar-thumb {
+  background: rgba(10, 10, 20, 0.25);
 }
 
 @keyframes pulse-dot {

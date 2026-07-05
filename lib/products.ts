@@ -32,6 +32,8 @@ export type ProductModule = {
   features: { title: string; description: string }[];
   /** Slugs of modules this one connects with. */
   worksWith: string[];
+  /** Set once the module has a live app — adds a launch button. */
+  liveUrl?: string;
 };
 
 export const statusStyle: Record<ModuleStatus, { dot: string; label: string }> =
@@ -73,8 +75,9 @@ export const productModules: ProductModule[] = [
   {
     slug: "crm",
     name: "CRM",
-    status: "building",
+    status: "running",
     icon: Users,
+    liveUrl: "/crm",
     tagline: "A pipeline that matches how you actually sell.",
     overview:
       "Most CRMs are built for enterprise sales teams and then forced onto small businesses. The Franko OS CRM starts from the other end: leads arrive from your website automatically, follow-ups are drafted for you, and every contact carries its full history — pages visited, emails opened, invoices paid.",

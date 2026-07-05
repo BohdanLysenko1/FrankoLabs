@@ -7,6 +7,7 @@ import {
   Info,
   Mail,
   Tag,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +17,8 @@ export type OSApp = {
   href: string;
   icon: LucideIcon;
   description: string;
+  /** Full-screen apps launch in their own tab, like opening a program. */
+  newTab?: boolean;
 };
 
 /** The applications installed in Franko OS. Order = dock order. */
@@ -47,6 +50,14 @@ export const apps: OSApp[] = [
     href: "/products",
     icon: Hexagon,
     description: "Franko OS and installed applications",
+  },
+  {
+    id: "crm",
+    name: "CRM",
+    href: "/crm",
+    icon: Users,
+    description: "Franko CRM — live early-access app",
+    newTab: true,
   },
   {
     id: "projects",

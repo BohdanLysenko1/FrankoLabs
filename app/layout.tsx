@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Desktop from "@/components/os/Desktop";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,9 +44,15 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full">
-        <Desktop>{children}</Desktop>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("franko-os-theme")==="light")document.documentElement.classList.add("light")}catch(e){}`,
+          }}
+        />
+        {children}
       </body>
     </html>
   );

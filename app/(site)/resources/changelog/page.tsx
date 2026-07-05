@@ -18,6 +18,29 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "v0.5.0",
+    date: "July 3, 2026",
+    title: "CRM: calendar, reports & automations",
+    changes: [
+      "Calendar module — month and week views, drag-to-reschedule, events linked to deals and contacts.",
+      "Reports: won revenue by month, pipeline funnel, win rate by source, time-to-close.",
+      "Automations that actually run: stage changes create follow-up tasks and portal updates automatically.",
+      "Notifications inbox, ⌘K command palette, and a full deal editor on every pipeline card.",
+      "Your workspace now persists between visits (local to your browser).",
+    ],
+  },
+  {
+    version: "v0.4.0",
+    date: "July 1, 2026",
+    title: "Franko CRM — early access",
+    changes: [
+      "The CRM module is live: pipeline board, contacts, companies, tasks and a dashboard, opening full-screen in its own tab.",
+      "Pulse — deal-health monitoring that scores every open deal and tells you what needs attention next.",
+      "Client portal preview: see exactly what your clients see, per project.",
+      "Workspace onboarding, pipeline editor, team and billing settings.",
+    ],
+  },
+  {
     version: "v0.3.0",
     date: "July 1, 2026",
     title: "Resources hub",

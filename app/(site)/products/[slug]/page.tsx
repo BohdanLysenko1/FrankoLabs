@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import Window from "@/components/os/Window";
 import {
   getProductModule,
@@ -65,13 +65,25 @@ export default async function ProductModulePage({ params }: Props) {
               {mod.tagline}
             </p>
           </div>
-          <Link
-            href="/contact?type=waitlist"
-            className="ml-auto inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
-          >
-            Join the waitlist
-            <ArrowRight className="size-5" />
-          </Link>
+          {mod.liveUrl ? (
+            <a
+              href={mod.liveUrl}
+              target="_blank"
+              rel="noopener"
+              className="ml-auto inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+            >
+              Launch {mod.name}
+              <ArrowUpRight className="size-5" />
+            </a>
+          ) : (
+            <Link
+              href="/contact?type=waitlist"
+              className="ml-auto inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+            >
+              Join the waitlist
+              <ArrowRight className="size-5" />
+            </Link>
+          )}
         </div>
 
         {/* Overview */}
@@ -136,17 +148,30 @@ export default async function ProductModulePage({ params }: Props) {
               Want {mod.name} running your business?
             </p>
             <p className="mt-1 text-[15px] text-ink-dim">
-              Franko OS is in early access — join the waitlist and we&apos;ll
-              reach out as modules go live.
+              {mod.liveUrl
+                ? `${mod.name} is live in early access — open the app and try it with sample data, no signup needed.`
+                : "Franko OS is in early access — join the waitlist and we'll reach out as modules go live."}
             </p>
           </div>
-          <Link
-            href="/contact?type=waitlist"
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
-          >
-            Join the waitlist
-            <ArrowRight className="size-5" />
-          </Link>
+          {mod.liveUrl ? (
+            <a
+              href={mod.liveUrl}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+            >
+              Launch {mod.name}
+              <ArrowUpRight className="size-5" />
+            </a>
+          ) : (
+            <Link
+              href="/contact?type=waitlist"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+            >
+              Join the waitlist
+              <ArrowRight className="size-5" />
+            </Link>
+          )}
         </div>
       </div>
     </Window>

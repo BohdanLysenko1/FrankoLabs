@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Hexagon } from "lucide-react";
+import LogoMark from "./LogoMark";
 
 const BOOT_KEY = "franko-os-booted";
 const BOOT_MS = 2100;
@@ -58,7 +58,7 @@ export default function BootScreen() {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="flex items-center gap-3"
           >
-            <Hexagon className="size-9 text-accent" strokeWidth={1.5} />
+            <LogoMark className="h-9 w-auto" />
             <span className="text-2xl font-semibold tracking-tight">
               Franko OS
             </span>

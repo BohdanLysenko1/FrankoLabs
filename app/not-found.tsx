@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileQuestion, ArrowRight } from "lucide-react";
+import Desktop from "@/components/os/Desktop";
 import Window from "@/components/os/Window";
+import { CrmProvider } from "@/lib/crm/store";
+import { PortalAuthProvider } from "@/lib/portal/auth";
 
 export const metadata: Metadata = {
   title: "Not found",
@@ -10,7 +13,10 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <Window title="Not Found" path="~/404" size="md">
+    <CrmProvider>
+    <PortalAuthProvider>
+    <Desktop>
+      <Window title="Not Found" path="~/404" size="md">
       <div className="flex flex-col items-center p-6 py-16 text-center md:p-10 md:py-20">
         <div className="flex size-20 items-center justify-center rounded-2xl border border-edge bg-surface-3">
           <FileQuestion className="size-10 text-ink-dim" strokeWidth={1.5} />
@@ -41,6 +47,9 @@ export default function NotFound() {
           </Link>
         </div>
       </div>
-    </Window>
+      </Window>
+    </Desktop>
+    </PortalAuthProvider>
+    </CrmProvider>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { Hexagon, ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 import Window from "@/components/os/Window";
 import { productModules, statusStyle } from "@/lib/products";
 
@@ -16,8 +17,14 @@ export default function ProductsPage() {
       <div className="p-6 md:p-10">
         {/* Installed application header */}
         <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-edge bg-surface-2/50 p-6">
-          <div className="flex size-20 items-center justify-center rounded-2xl border border-edge bg-surface-3">
-            <Hexagon className="size-10 text-accent" strokeWidth={1.5} />
+          <div className="size-20 shrink-0 overflow-hidden rounded-2xl border border-edge">
+            <Image
+              src="/logos/FrankoLabsLogo.png"
+              alt="Franko OS logo"
+              width={80}
+              height={80}
+              className="size-full object-cover"
+            />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">

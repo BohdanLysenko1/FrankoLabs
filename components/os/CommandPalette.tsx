@@ -78,9 +78,13 @@ export default function CommandPalette({ open, setOpen }: PaletteProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  const go = (href: string) => {
+  const go = (href: string, newTab?: boolean) => {
     setOpen(false);
-    router.push(href);
+    if (newTab) {
+      window.open(href, "_blank", "noopener");
+    } else {
+      router.push(href);
+    }
   };
 
   if (!open) return null;
@@ -137,7 +141,7 @@ export default function CommandPalette({ open, setOpen }: PaletteProps) {
             {apps.map((app) => (
               <Command.Item
                 key={app.id}
-                onSelect={() => go(app.href)}
+                onSelect={() => go(app.href, app.newTab)}
                 className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-[15px] text-ink-dim data-[selected=true]:bg-accent-dim data-[selected=true]:text-ink"
               >
                 <app.icon className="size-5" strokeWidth={1.75} />

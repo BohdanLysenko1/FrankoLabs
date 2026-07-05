@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Briefcase, Hexagon, ArrowRight, Check } from "lucide-react";
+import { Briefcase, ArrowRight, Check } from "lucide-react";
+import LogoMark from "@/components/os/LogoMark";
 import Window from "@/components/os/Window";
 
 export const metadata: Metadata = {
@@ -47,7 +48,7 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="rounded-2xl border border-edge bg-surface-2/40 p-6">
-            <Hexagon className="size-7 text-accent" strokeWidth={1.75} />
+            <LogoMark className="h-7 w-auto" />
             <h3 className="mt-4 text-lg font-medium">Franko OS</h3>
             <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">
               The operating system that powers Franko Labs — and eventually
