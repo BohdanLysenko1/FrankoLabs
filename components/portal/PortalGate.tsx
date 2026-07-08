@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 import type { Company } from "@/lib/crm/types";
+import { useCrm } from "@/lib/crm/store";
 import { usePortalAuth } from "@/lib/portal/auth";
 import { entitlementsFor, type PortalToolId } from "@/lib/portal/portal";
 
@@ -17,6 +18,7 @@ type PortalGateProps = {
 /** Wraps a portal window: signed out → /login, not entitled → plan note. */
 export default function PortalGate({ tool, children }: PortalGateProps) {
   const router = useRouter();
+  const { state } = useCrm();
   const { ready, company } = usePortalAuth();
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function PortalGate({ tool, children }: PortalGateProps) {
 
   if (!ready || !company) return null;
 
-  if (!entitlementsFor(company).includes(tool)) {
+  if (!entitlementsFor(state, company).includes(tool)) {
     return (
       <div className="flex flex-col items-center gap-4 px-6 py-16 text-center">
         <Lock className="size-8 text-ink-faint" strokeWidth={1.5} />

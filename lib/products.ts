@@ -50,6 +50,7 @@ export const productModules: ProductModule[] = [
     name: "Dashboard",
     status: "running",
     icon: LayoutDashboard,
+    liveUrl: "/crm",
     tagline: "Your whole business on one screen.",
     overview:
       "The Dashboard is the home screen of Franko OS. It pulls live signals from every other module — traffic, leads, revenue, open tasks, site health — into a single view, so the first thing you see each morning is the state of the business, not fifteen browser tabs.",
@@ -110,6 +111,7 @@ export const productModules: ProductModule[] = [
     name: "Client Portal",
     status: "building",
     icon: DoorOpen,
+    liveUrl: "/login",
     tagline: "One login for everything you deliver to clients.",
     overview:
       "Clients shouldn't have to dig through email threads to find their invoice, their contract or the status of their project. The Client Portal gives each of your clients a branded login where everything you deliver — files, approvals, invoices, support — lives in one place.",
@@ -137,6 +139,7 @@ export const productModules: ProductModule[] = [
     name: "Website Management",
     status: "building",
     icon: Globe,
+    liveUrl: "/crm/websites",
     tagline: "Edit, publish and monitor your site without a developer.",
     overview:
       "Website Management is mission control for your site. Change content, publish pages, and watch performance and uptime from the same panel — with every change versioned, previewable and instantly reversible.",
@@ -164,6 +167,7 @@ export const productModules: ProductModule[] = [
     name: "Domains & DNS",
     status: "planned",
     icon: Network,
+    liveUrl: "/crm/websites",
     tagline: "Domains, records and certificates without the registrar maze.",
     overview:
       "DNS is where good websites go to break. This module manages your domains, records and SSL certificates in plain language — and because it lives next to Hosting and Website Management, common setups are one-click instead of a support ticket.",
@@ -191,6 +195,7 @@ export const productModules: ProductModule[] = [
     name: "Hosting",
     status: "building",
     icon: Server,
+    liveUrl: "/crm/websites",
     tagline: "Infrastructure you never have to think about.",
     overview:
       "Hosting runs your site on the same managed infrastructure that powers Franko Labs client work: global edge delivery, automatic backups and continuous monitoring. When something needs attention, it's usually fixed before you hear about it.",
@@ -218,6 +223,7 @@ export const productModules: ProductModule[] = [
     name: "Analytics",
     status: "building",
     icon: ChartColumn,
+    liveUrl: "/crm/reports",
     tagline: "Traffic, leads and revenue in one honest dashboard.",
     overview:
       "Analytics connects the numbers other tools keep separate. Because it shares data with your CRM and Billing, it doesn't stop at pageviews — it follows a visitor from first click to signed contract, so you know what actually makes you money.",
@@ -245,6 +251,7 @@ export const productModules: ProductModule[] = [
     name: "Billing & Invoices",
     status: "planned",
     icon: Receipt,
+    liveUrl: "/crm/billing",
     tagline: "Get paid without chasing.",
     overview:
       "Billing & Invoices turns getting paid into a background process. Invoices generate from your CRM deals and contracts, go out on schedule, chase themselves politely, and reconcile automatically when the money lands.",
@@ -272,6 +279,7 @@ export const productModules: ProductModule[] = [
     name: "Contracts",
     status: "planned",
     icon: FilePen,
+    liveUrl: "/crm/contracts",
     tagline: "From proposal to signature in one flow.",
     overview:
       "Contracts handles the paperwork between the handshake and the kickoff. Build proposals from templates, send them for legally-binding e-signature, and have the signed deal flow straight into Billing and Tasks — no PDF attachments, no printing.",
@@ -299,6 +307,7 @@ export const productModules: ProductModule[] = [
     name: "Tasks",
     status: "building",
     icon: ListChecks,
+    liveUrl: "/crm/tasks",
     tagline: "Work tracking that lives where the work happens.",
     overview:
       "Tasks is project management wired into the rest of the system. Client requests become tasks, tasks link to the deals and sites they belong to, and progress is visible to clients through the Portal — without you writing a single status update.",
@@ -326,6 +335,7 @@ export const productModules: ProductModule[] = [
     name: "Support",
     status: "planned",
     icon: LifeBuoy,
+    liveUrl: "/crm/support",
     tagline: "Every client request in one queue.",
     overview:
       "Support collects requests from email, the Client Portal and your site into one queue with history and accountability. No more issues buried in someone's inbox — every request has an owner, a status and a full paper trail.",
@@ -353,6 +363,7 @@ export const productModules: ProductModule[] = [
     name: "Password Vault",
     status: "planned",
     icon: KeyRound,
+    liveUrl: "/crm/vault",
     tagline: "Client credentials, stored like they matter.",
     overview:
       "Agencies accumulate client credentials — hosting logins, DNS panels, ad accounts — and too often they live in spreadsheets and chat threads. The Password Vault stores them encrypted, shares them by role, and logs every access.",
@@ -380,6 +391,7 @@ export const productModules: ProductModule[] = [
     name: "Email Automation",
     status: "planned",
     icon: MailPlus,
+    liveUrl: "/crm/email",
     tagline: "Campaigns triggered by real behavior, not guesswork.",
     overview:
       "Email Automation sends the right message because it can see the whole system: what a contact did on your site, where their deal sits in the CRM, whether their invoice is paid. Sequences, broadcasts and lifecycle emails — all driven by real data.",
@@ -407,6 +419,7 @@ export const productModules: ProductModule[] = [
     name: "AI Assistant",
     status: "building",
     icon: Sparkles,
+    liveUrl: "/crm/assistant",
     tagline: "An operator that knows your whole business.",
     overview:
       "The AI Assistant works across every module, with your business as its context. Ask it questions in plain language, or let it handle the repetitive work: drafting follow-ups, summarizing weeks, updating pages, triaging tickets — always with you approving the result.",
@@ -434,6 +447,7 @@ export const productModules: ProductModule[] = [
     name: "Documentation",
     status: "planned",
     icon: BookOpen,
+    liveUrl: "/crm/docs",
     tagline: "The operating manual your business writes as it runs.",
     overview:
       "Documentation is the shared knowledge base for your team and your clients: processes, guides and answers, organized and searchable. It also feeds the AI Assistant and Support, so the answer you wrote once keeps answering.",

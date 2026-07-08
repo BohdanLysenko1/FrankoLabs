@@ -26,9 +26,9 @@ export default function Widget({ name, className = "", delay = 0, children }: Wi
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.3, delay, ease: "easeOut" }}
-      className={`overflow-hidden rounded-xl border border-edge bg-surface/85 shadow-xl shadow-black/40 backdrop-blur-md ${className}`}
+      className={`os-widget overflow-hidden rounded-xl border border-edge bg-surface/85 shadow-xl shadow-black/40 backdrop-blur-md ${className}`}
     >
-      <div className="flex cursor-grab items-center gap-2 border-b border-edge px-4 py-2 active:cursor-grabbing">
+      <div className="os-widget-head flex cursor-grab items-center gap-2 border-b border-edge px-4 py-2 active:cursor-grabbing">
         <span className="hex size-2.5 bg-accent/60" />
         <span className="text-xs font-medium tracking-wide text-ink-dim">
           {name}

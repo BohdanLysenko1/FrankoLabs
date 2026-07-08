@@ -49,7 +49,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem("franko-os-theme")==="light")document.documentElement.classList.add("light")}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("franko-os-theme");if(t==="light"||t==="xp")document.documentElement.classList.add(t)}catch(e){}`,
           }}
         />
         {children}

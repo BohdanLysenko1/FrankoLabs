@@ -96,7 +96,7 @@ export default function CommandPalette({ open, setOpen }: PaletteProps) {
     >
       <Command
         label="Command palette"
-        className="w-full max-w-xl overflow-hidden rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/70 backdrop-blur-xl"
+        className="os-menu w-full max-w-xl overflow-hidden rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/70 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-edge px-4">

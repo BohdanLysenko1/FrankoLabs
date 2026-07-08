@@ -12,13 +12,19 @@ import {
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import type { Company, Contact } from "@/lib/crm/types";
+import {
+  setClientPassword,
+  verifyClientPassword,
+  useAccounts,
+} from "@/lib/accounts";
 import { primaryContactFor } from "./portal";
 
 /**
- * Demo portal auth with a real shape: the session is a signed-in client
- * company, persisted to localStorage. Accounts are the CRM's client
- * companies — inviting a client is what creates their login. A real
- * provider replaces signIn/signOut without touching consumers.
+ * Portal auth: the session is a signed-in client company, persisted to
+ * localStorage. Accounts are the CRM's client companies — the invite link
+ * activates one by letting the client set their password (stored hashed in
+ * lib/accounts). A real provider replaces signIn/signOut without touching
+ * consumers.
  */
 
 const SESSION_KEY = "franko-portal-session";
@@ -31,7 +37,12 @@ type PortalAuthValue = {
   /** The signed-in client company, or null. Cleared if the company stops being a client. */
   company: Company | null;
   contact: Contact | null;
-  signIn: (companyId: string) => boolean;
+  /** Whether a client has set their password yet (activated their account). */
+  isActivated: (companyId: string) => boolean;
+  /** Verify the password and open a session. False on wrong password or un-activated account. */
+  signIn: (companyId: string, password: string) => Promise<boolean>;
+  /** First sign-in from an invite link: set the password, then open a session. */
+  activate: (companyId: string, password: string) => Promise<boolean>;
   signOut: () => void;
 };
 
@@ -53,6 +64,7 @@ function readSession(): PortalSession | null {
 export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { state } = useCrm();
+  const accounts = useAccounts();
   const [session, setSession] = useState<PortalSession | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -84,20 +96,36 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     setReady(true);
   }, [router]);
 
+  const openSession = useCallback((companyId: string) => {
+    const next = { companyId, at: Date.now() };
+    setSession(next);
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    } catch {
+      // Storage unavailable — session lives in memory for this visit.
+    }
+  }, []);
+
   const signIn = useCallback(
-    (companyId: string) => {
+    async (companyId: string, password: string) => {
       const company = state.companies.find((c) => c.id === companyId);
       if (!company?.isClient) return false;
-      const next = { companyId, at: Date.now() };
-      setSession(next);
-      try {
-        localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-      } catch {
-        // Storage unavailable — session lives in memory for this visit.
-      }
+      if (!(await verifyClientPassword(companyId, password))) return false;
+      openSession(companyId);
       return true;
     },
-    [state.companies],
+    [state.companies, openSession],
+  );
+
+  const activate = useCallback(
+    async (companyId: string, password: string) => {
+      const company = state.companies.find((c) => c.id === companyId);
+      if (!company?.isClient || password.length < 8) return false;
+      await setClientPassword(companyId, password);
+      openSession(companyId);
+      return true;
+    },
+    [state.companies, openSession],
   );
 
   const signOut = useCallback(() => {
@@ -119,10 +147,12 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
       ready,
       company,
       contact: company ? primaryContactFor(state, company.id) : null,
+      isActivated: (companyId: string) => Boolean(accounts.clients[companyId]),
       signIn,
+      activate,
       signOut,
     };
-  }, [ready, session, state, signIn, signOut]);
+  }, [ready, session, state, accounts, signIn, activate, signOut]);
 
   return (
     <PortalAuthContext.Provider value={value}>

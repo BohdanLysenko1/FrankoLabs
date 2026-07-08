@@ -184,3 +184,382 @@ body {
 .boot-bar {
   animation: boot-fill 1.5s ease-in-out forwards;
 }
+
+/* ============================================================
+   Retro XP — "Franko OS Olive Edition"
+   Toggled via .xp on <html> (third theme next to dark/light).
+   Faithful Luna-era chrome in the XP Olive color scheme.
+   ============================================================ */
+
+html.xp {
+  --color-desktop: #5a8f3c;
+  --color-surface: #ece9d8; /* classic dialog face */
+  --color-surface-2: #f6f4e8;
+  --color-surface-3: #dbd6ba;
+  --color-edge: rgba(101, 114, 58, 0.45);
+  --color-edge-strong: rgba(101, 114, 58, 0.75);
+  --color-ink: #1f1f14;
+  --color-ink-dim: #4e4e3c;
+  --color-ink-faint: #7d7d64;
+  --color-accent: #5f7f24;
+  --color-accent-dim: rgba(122, 148, 63, 0.22);
+  --color-danger: #c0391f;
+  --color-warn: #ad7c05;
+
+  /* Olive chrome primitives */
+  --xp-chrome: #86974e;
+  --xp-chrome-dark: #5d6b32;
+  --xp-highlight: #7c8f45;
+  --xp-orange: #e8973a;
+  --xp-face: #ece9d8;
+
+  --font-sans: Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
+  --font-mono: "Lucida Console", "Courier New", monospace;
+}
+html.xp,
+html.xp body {
+  color-scheme: light;
+}
+
+.xp ::selection {
+  background: rgba(124, 143, 69, 0.5);
+}
+
+/* XP had corners, but barely — squash the modern radii */
+.xp :is([class*="rounded-md"], [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"]) {
+  border-radius: 3px;
+}
+
+/* No frosted glass in 2003 — solid panels, hard shadows */
+.xp [class*="backdrop-blur"] {
+  backdrop-filter: none;
+}
+.xp [class*="bg-surface/"] {
+  background-color: var(--color-surface);
+}
+.xp [class*="bg-surface-2/"] {
+  background-color: var(--color-surface-2);
+}
+.xp [class*="bg-surface-3/"] {
+  background-color: var(--color-surface-3);
+}
+.xp [class*="shadow-black/"] {
+  --tw-shadow-color: rgba(40, 45, 20, 0.35);
+}
+
+/* Hexagonal Franko controls become honest squares */
+.xp .hex {
+  clip-path: none;
+  border-radius: 2px;
+}
+
+/* Accent CTAs become raised XP buttons — white label, not black */
+.xp [class~="bg-accent"] {
+  background: linear-gradient(180deg, #8aab41, #64851f 55%, #55731a);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(20, 35, 0, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 3px rgba(0, 30, 0, 0.2);
+}
+.xp [class~="text-black"] {
+  color: #fff;
+}
+.xp [class~="hover:text-black"]:hover {
+  color: #fff;
+}
+
+/* Recessed wells (kanban columns, drawers) need a step of depth */
+.xp [class*="bg-surface-2/5"] {
+  background-color: #e7e3cc;
+}
+
+/* Pulse dots glow olive, not emerald */
+@keyframes xp-pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 143, 69, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(124, 143, 69, 0);
+  }
+}
+.xp .status-dot {
+  animation-name: xp-pulse-dot;
+}
+
+/* Dotted focus rectangles, like tabbing through a dialog */
+.xp :focus-visible {
+  outline: 1px dotted #3a3a24;
+  outline-offset: 1px;
+}
+
+/* Bliss, but make it olive — sky, haze, two rolling hills (pure SVG) */
+.xp .wallpaper {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3ClinearGradient id='s' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%233d84c6'/%3E%3Cstop offset='.55' stop-color='%237ab3e0'/%3E%3Cstop offset='.78' stop-color='%23cfe4f2'/%3E%3C/linearGradient%3E%3ClinearGradient id='h1' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%238fc45e'/%3E%3Cstop offset='1' stop-color='%234d7f26'/%3E%3C/linearGradient%3E%3ClinearGradient id='h2' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2379ad48'/%3E%3Cstop offset='1' stop-color='%233c661d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='1000' fill='url(%23s)'/%3E%3Cellipse cx='1250' cy='170' rx='260' ry='80' fill='%23ffffff' opacity='.32'/%3E%3Cellipse cx='420' cy='120' rx='210' ry='60' fill='%23ffffff' opacity='.26'/%3E%3Cpath d='M0 640 Q 420 470 820 615 T 1600 555 V1000 H0 Z' fill='url(%23h1)'/%3E%3Cpath d='M0 785 Q 500 635 980 760 T 1600 715 V1000 H0 Z' fill='url(%23h2)'/%3E%3C/svg%3E");
+  background-size: cover;
+  background-position: center bottom;
+}
+.xp .wallpaper-glow {
+  display: none;
+}
+
+/* Chunky beveled scrollbars */
+.xp .os-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #98a961 #f0eee0;
+}
+.xp .os-scroll::-webkit-scrollbar {
+  width: 14px;
+}
+.xp .os-scroll::-webkit-scrollbar-track {
+  background: #f0eee0;
+}
+.xp .os-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #c5d093, #98a961);
+  border: 1px solid #6f7f3e;
+  border-radius: 2px;
+}
+
+/* --- Window chrome ------------------------------------------ */
+.xp-window {
+  border: 3px solid var(--xp-chrome-dark) !important;
+  border-top: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  box-shadow: 3px 3px 12px rgba(0, 0, 0, 0.45) !important;
+}
+.xp-titlebar {
+  background: linear-gradient(
+    180deg,
+    #b4c17c 0%,
+    #94a55c 6%,
+    #86974e 45%,
+    #6d7c3c 92%,
+    #616f34 100%
+  );
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(30, 40, 10, 0.7);
+  font-family: "Trebuchet MS", Tahoma, sans-serif;
+  border-radius: 5px 5px 0 0;
+}
+.xp-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: linear-gradient(180deg, #b8c584, #8a9b52 45%, #75853f);
+  color: #fff;
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.22);
+  transition: filter 0.1s;
+}
+.xp-ctrl:hover {
+  filter: brightness(1.14);
+}
+.xp-ctrl:active {
+  filter: brightness(0.9);
+}
+.xp-ctrl-close {
+  background: linear-gradient(180deg, #e8a08a, #cf6548 45%, #b34a2e);
+}
+
+/* --- Taskbar + Start ---------------------------------------- */
+.xp-taskbar {
+  background: linear-gradient(
+    180deg,
+    #9db06a 0%,
+    #87994f 4%,
+    #7b8c46 50%,
+    #6a793a 96%,
+    #5a6830 100%
+  );
+  border-top: 1px solid #4c5828;
+}
+.xp-start {
+  background: linear-gradient(180deg, #8fbf57 0%, #6da33c 45%, #528527 100%);
+  border-radius: 0 14px 14px 0;
+  color: #fff;
+  font-style: italic;
+  font-weight: 700;
+  text-shadow: 1px 1px 2px rgba(20, 40, 5, 0.8);
+  box-shadow:
+    inset 1px 2px 2px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 4px rgba(0, 40, 0, 0.25),
+    2px 0 4px rgba(0, 0, 0, 0.3);
+  transition: filter 0.1s;
+}
+.xp-start:hover {
+  filter: brightness(1.1);
+}
+.xp-start:active {
+  filter: brightness(0.9);
+}
+.xp-task-btn {
+  background: linear-gradient(180deg, #a9ba74, #85974c);
+  border: 1px solid #55632c;
+  border-radius: 3px;
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(30, 40, 10, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.xp-task-btn:hover {
+  filter: brightness(1.08);
+}
+.xp-task-btn-active {
+  background: linear-gradient(180deg, #6f7e3d, #82934c);
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.35);
+}
+.xp-tray {
+  background: linear-gradient(180deg, #93a55e, #7b8c46);
+  border-left: 1px solid #5f6e30;
+  box-shadow: inset 2px 1px 3px rgba(0, 0, 0, 0.22);
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(30, 40, 10, 0.6);
+}
+
+/* --- Start menu ---------------------------------------------- */
+.xp-startmenu {
+  border: 1px solid #4c5828;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.xp-startmenu-head {
+  background: linear-gradient(180deg, #a5b56e 0%, #86974e 50%, #6d7c3c 100%);
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(30, 40, 10, 0.7);
+}
+.xp-orange-rule {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--xp-orange), transparent);
+}
+.xp-startmenu-foot {
+  background: linear-gradient(180deg, #93a55e, #6d7c3c);
+  color: #fff;
+}
+
+/* --- Menus, dropdowns, command palette ----------------------- */
+.xp .os-menu {
+  background: #fff !important;
+  border: 1px solid #63713a !important;
+  border-radius: 0 !important;
+  box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+}
+.xp .os-menu button:hover,
+.xp .os-menu [data-selected="true"] {
+  background: var(--xp-highlight);
+  color: #fff;
+}
+.xp .os-menu button:hover :is(svg, span),
+.xp .os-menu [data-selected="true"] :is(svg, span) {
+  color: #fff;
+}
+
+/* --- Menu bar (top) ------------------------------------------ */
+.xp .os-menubar {
+  background: linear-gradient(180deg, #f7f5ea 0%, #ece9d8 55%, #ddd8bf 100%);
+  border-bottom: 1px solid #a8a483;
+  backdrop-filter: none;
+}
+
+/* --- Widgets (mini windows) ---------------------------------- */
+.xp .os-widget {
+  border: 1px solid #6f7f3e;
+  background: #f8f6ea;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.28);
+}
+.xp .os-widget-head {
+  background: linear-gradient(180deg, #b4c17c, #86974e);
+  color: #fff;
+  border-bottom: 1px solid #6f7f3e;
+}
+.xp .os-widget-head span {
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(30, 40, 10, 0.6);
+}
+
+/* --- Balloon tips -------------------------------------------- */
+.xp-balloon {
+  background: #ffffe1;
+  color: #16160c;
+  border: 1px solid #5a5a3c;
+  border-radius: 8px;
+  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.35);
+}
+.xp-balloon::after {
+  content: "";
+  position: absolute;
+  bottom: -12px;
+  right: 28px;
+  border: 12px solid transparent;
+  border-top-color: #ffffe1;
+  border-right-width: 4px;
+  border-left-width: 12px;
+  filter: drop-shadow(1px 2px 1px rgba(0, 0, 0, 0.2));
+}
+
+/* --- Desktop icons ------------------------------------------- */
+.xp-icon {
+  width: 80px;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.85);
+}
+.xp-icon .xp-icon-label {
+  border: 1px dotted transparent;
+  padding: 1px 3px;
+}
+.xp-icon[data-selected="true"] .xp-icon-label {
+  background: rgba(93, 107, 50, 0.85);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+.xp-icon svg {
+  filter: drop-shadow(1px 2px 2px rgba(0, 0, 0, 0.55));
+}
+
+/* --- CRM shell (Explorer-style task panes) -------------------- */
+.xp .crm-sidebar {
+  background: linear-gradient(180deg, #f5f3e6 0%, #e9e5cf 100%);
+  border-right: 1px solid #a8a483;
+}
+.xp .crm-topbar {
+  background: linear-gradient(180deg, #f5f3e6, #e9e5cf);
+  border-bottom: 1px solid #a8a483;
+}
+/* Inside the app, trade the wallpaper green for a workspace khaki */
+.xp .crm-shell {
+  background: #d3cfae;
+}
+
+/* --- Boot screen --------------------------------------------- */
+.xp-boot-track {
+  width: 220px;
+  height: 16px;
+  border: 1px solid #8a8a8a;
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 2px;
+}
+.xp-boot-blocks {
+  display: flex;
+  gap: 3px;
+  height: 100%;
+  width: 45px;
+  animation: xp-boot-slide 1.5s linear infinite;
+}
+.xp-boot-block {
+  width: 13px;
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #b6e08a, #6da33c 55%, #4d7f26);
+}
+@keyframes xp-boot-slide {
+  from {
+    transform: translateX(-50px);
+  }
+  to {
+    transform: translateX(222px);
+  }
+}

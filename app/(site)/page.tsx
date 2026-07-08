@@ -120,7 +120,7 @@ function MarketingDashboard() {
           onClick={() =>
             dashboardRef.current?.scrollIntoView({ behavior: "smooth" })
           }
-          className="group absolute bottom-32 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5 text-sm text-ink-dim transition hover:text-ink"
+          className="group absolute bottom-32 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-1.5 text-sm text-ink-dim transition hover:text-ink sm:flex"
         >
           See your dashboard
           <ChevronDown className="size-5 animate-bounce text-accent" />

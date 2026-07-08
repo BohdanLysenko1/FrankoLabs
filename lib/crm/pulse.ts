@@ -19,6 +19,10 @@ export type DealHealth = {
   daysSinceTouch: number;
   daysInStage: number;
   overdueTasks: number;
+  /** Company-level friction: overdue invoices at this deal's company. */
+  overdueInvoices: number;
+  /** Company-level friction: open tickets untouched for 3+ days. */
+  staleTickets: number;
   /** Expected touch cadence for the deal's stage, in days. */
   cadence: number;
 };
@@ -96,6 +100,22 @@ export function computeDealHealth(
   const overdueTasks = state.tasks.filter(
     (t) => t.dealId === deal.id && !t.done && t.dueAt < now,
   ).length;
+  // Friction elsewhere in the relationship bleeds into deal health: unpaid
+  // invoices and unanswered tickets make every next conversation harder.
+  const overdueInvoices = deal.companyId
+    ? state.invoices.filter(
+        (i) =>
+          i.companyId === deal.companyId && i.status === "due" && i.dueAt < now,
+      ).length
+    : 0;
+  const staleTickets = deal.companyId
+    ? state.tickets.filter(
+        (t) =>
+          t.companyId === deal.companyId &&
+          t.status !== "resolved" &&
+          now - t.updatedAt > 3 * DAY,
+      ).length
+    : 0;
 
   let score = 100;
   // Silence past the expected cadence is the main killer.
@@ -103,6 +123,8 @@ export function computeDealHealth(
   // Sitting in one stage far beyond cadence means the deal is stalling.
   if (daysInStage > cadence * 3) score -= 15;
   score -= overdueTasks * 12;
+  score -= overdueInvoices * 8;
+  score -= staleTickets * 6;
 
   score = Math.max(3, Math.min(100, Math.round(score)));
   const status: HealthStatus =
@@ -115,6 +137,8 @@ export function computeDealHealth(
     daysSinceTouch,
     daysInStage,
     overdueTasks,
+    overdueInvoices,
+    staleTickets,
     cadence,
   };
 }
@@ -184,6 +208,30 @@ export function computePulse(
         dealId: deal.id,
         action: "create-task",
         actionLabel: "Plan next step",
+      });
+    }
+
+    if (h.overdueInvoices > 0) {
+      signals.push({
+        id: `sig-invoice-${deal.id}`,
+        severity: "warning",
+        title: `Billing friction at ${deal.name}`,
+        detail: `${h.overdueInvoices} overdue invoice${h.overdueInvoices > 1 ? "s" : ""} at this client. Money friction sours deal conversations — nudge it before the next touch.`,
+        dealId: deal.id,
+        action: "open-deal",
+        actionLabel: "Review client",
+      });
+    }
+
+    if (h.staleTickets > 0) {
+      signals.push({
+        id: `sig-ticket-${deal.id}`,
+        severity: "warning",
+        title: `Unanswered support at ${deal.name}`,
+        detail: `${h.staleTickets} open ticket${h.staleTickets > 1 ? "s" : ""} untouched for 3+ days at this client. Slow support erodes the trust the deal depends on.`,
+        dealId: deal.id,
+        action: "open-deal",
+        actionLabel: "Review client",
       });
     }
 

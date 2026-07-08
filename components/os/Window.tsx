@@ -3,9 +3,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useDragControls } from "framer-motion";
-import { X, Minus, Maximize2 } from "lucide-react";
+import { X, Minus, Maximize2, Square } from "lucide-react";
 import { useDesktop } from "./DesktopContext";
+import LogoMark from "./LogoMark";
 import { playSound } from "@/lib/sound";
+import { useTheme } from "@/lib/theme";
 
 type WindowProps = {
   /** Window title, shown in the titlebar. */
@@ -39,6 +41,7 @@ export default function Window({ title, path, size = "lg", children }: WindowPro
   const { desktopRef } = useDesktop();
   const dragControls = useDragControls();
   const isDesktop = useIsDesktopViewport();
+  const retro = useTheme() === "xp";
   const [maximized, setMaximized] = useState(false);
   const [leaving, setLeaving] = useState<"close" | "minimize" | null>(null);
 
@@ -85,51 +88,95 @@ export default function Window({ title, path, size = "lg", children }: WindowPro
         }
         onContextMenu={(e) => e.stopPropagation()}
         className={`flex w-full flex-col overflow-hidden border-edge bg-surface shadow-2xl shadow-black/60 md:rounded-xl md:border ${
-          maximized ? "md:max-w-none" : sizes[size]
-        }`}
+          retro ? "xp-window" : ""
+        } ${maximized ? "md:max-w-none" : sizes[size]}`}
       >
-        <div
-          className="relative flex h-12 shrink-0 cursor-grab select-none items-center gap-3 border-b border-edge bg-surface-2/60 px-4 active:cursor-grabbing"
-          onPointerDown={(e) => draggable && dragControls.start(e)}
-          onDoubleClick={() => setMaximized((m) => !m)}
-        >
-          <div className="flex items-center gap-1.5">
-            <button
-              aria-label="Close window"
-              title="Close"
-              onClick={close}
-              className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
-            >
-              <X className="size-3" strokeWidth={2.5} />
-            </button>
-            <button
-              aria-label="Minimize window"
-              title="Minimize"
-              onClick={minimize}
-              className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
-            >
-              <Minus className="size-3" strokeWidth={2.5} />
-            </button>
-            <button
-              aria-label="Maximize window"
-              title={maximized ? "Restore" : "Expand"}
-              onClick={() => setMaximized((m) => !m)}
-              className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
-            >
-              <Maximize2 className="size-2.5" strokeWidth={2.5} />
-            </button>
-          </div>
-          <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-            <span className="flex items-center gap-2 text-[15px] font-medium">
+        {retro ? (
+          <div
+            className="xp-titlebar relative flex h-9 shrink-0 cursor-grab select-none items-center gap-2 px-2 active:cursor-grabbing"
+            onPointerDown={(e) => draggable && dragControls.start(e)}
+            onDoubleClick={() => setMaximized((m) => !m)}
+          >
+            <LogoMark className="h-4 w-auto shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-sm font-bold">
               {title}
               {path && (
-                <span className="hidden font-mono text-xs text-ink-faint sm:inline">
+                <span className="ml-2 hidden text-xs font-normal opacity-70 sm:inline">
                   {path}
                 </span>
               )}
             </span>
+            <div className="flex items-center gap-0.5">
+              <button
+                aria-label="Minimize window"
+                title="Minimize"
+                onClick={minimize}
+                className="xp-ctrl"
+              >
+                <Minus className="mt-2 size-3" strokeWidth={3} />
+              </button>
+              <button
+                aria-label="Maximize window"
+                title={maximized ? "Restore" : "Maximize"}
+                onClick={() => setMaximized((m) => !m)}
+                className="xp-ctrl"
+              >
+                <Square className="size-3" strokeWidth={3} />
+              </button>
+              <button
+                aria-label="Close window"
+                title="Close"
+                onClick={close}
+                className="xp-ctrl xp-ctrl-close"
+              >
+                <X className="size-3.5" strokeWidth={3} />
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            className="relative flex h-12 shrink-0 cursor-grab select-none items-center gap-3 border-b border-edge bg-surface-2/60 px-4 active:cursor-grabbing"
+            onPointerDown={(e) => draggable && dragControls.start(e)}
+            onDoubleClick={() => setMaximized((m) => !m)}
+          >
+            <div className="flex items-center gap-1.5">
+              <button
+                aria-label="Close window"
+                title="Close"
+                onClick={close}
+                className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
+              >
+                <X className="size-3" strokeWidth={2.5} />
+              </button>
+              <button
+                aria-label="Minimize window"
+                title="Minimize"
+                onClick={minimize}
+                className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
+              >
+                <Minus className="size-3" strokeWidth={2.5} />
+              </button>
+              <button
+                aria-label="Maximize window"
+                title={maximized ? "Restore" : "Expand"}
+                onClick={() => setMaximized((m) => !m)}
+                className="hex flex size-5 items-center justify-center bg-surface-3 text-ink-dim transition hover:bg-accent hover:text-black"
+              >
+                <Maximize2 className="size-2.5" strokeWidth={2.5} />
+              </button>
+            </div>
+            <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+              <span className="flex items-center gap-2 text-[15px] font-medium">
+                {title}
+                {path && (
+                  <span className="hidden font-mono text-xs text-ink-faint sm:inline">
+                    {path}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="os-scroll flex-1 overflow-y-auto pb-32 md:pb-0">
           {children}

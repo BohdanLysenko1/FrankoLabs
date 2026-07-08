@@ -102,7 +102,10 @@ export type CalEvent = {
 export type AutomationTrigger =
   | { type: "deal-created" }
   | { type: "stage-enter"; stageId: string }
-  | { type: "deal-won" };
+  | { type: "deal-won" }
+  | { type: "contract-signed" }
+  | { type: "ticket-opened" }
+  | { type: "invoice-paid" };
 
 export type AutomationAction =
   | { type: "create-task"; title: string; offsetDays: number }
@@ -131,6 +134,84 @@ export type OpenRequest = {
   id?: string;
 };
 
+export type InvoiceStatus = "due" | "paid";
+
+export type Invoice = {
+  id: string;
+  /** Human-facing number, e.g. "INV-1042". */
+  number: string;
+  companyId: string;
+  dealId: string | null;
+  label: string;
+  /** USD. */
+  amount: number;
+  issuedAt: number;
+  dueAt: number;
+  paidAt: number | null;
+  status: InvoiceStatus;
+};
+
+export type ContractStatus = "sent" | "viewed" | "signed";
+
+export type Contract = {
+  id: string;
+  companyId: string;
+  dealId: string | null;
+  title: string;
+  summary: string;
+  /** USD. */
+  amount: number;
+  /** Bullet terms shown in the signing view. */
+  terms: string[];
+  status: ContractStatus;
+  sentAt: number;
+  viewedAt: number | null;
+  signedAt: number | null;
+  signedBy: string | null;
+};
+
+export type TicketStatus = "open" | "in_progress" | "resolved";
+
+export type TicketMessage = {
+  id: string;
+  from: "client" | "agency";
+  author: string;
+  text: string;
+  at: number;
+};
+
+export type Ticket = {
+  id: string;
+  companyId: string;
+  contactId: string | null;
+  topic: string;
+  subject: string;
+  status: TicketStatus;
+  createdAt: number;
+  updatedAt: number;
+  messages: TicketMessage[];
+};
+
+export type DeliverableKind = "design" | "staging" | "file" | "doc";
+
+export type DeliverableStatus = "in_review" | "approved" | "changes_requested";
+
+/** Work posted for client review — approved from the portal's Projects tool. */
+export type Deliverable = {
+  id: string;
+  dealId: string | null;
+  companyId: string;
+  title: string;
+  kind: DeliverableKind;
+  /** Where the client looks: Figma link, staging URL, file, document. */
+  url: string;
+  note: string;
+  status: DeliverableStatus;
+  postedAt: number;
+  respondedAt: number | null;
+  clientComment: string;
+};
+
 export type TeamRole = "Owner" | "Admin" | "Member";
 
 export type TeamMember = {
@@ -157,6 +238,16 @@ export type CrmState = {
   tasks: Task[];
   activities: Activity[];
   events: CalEvent[];
+  invoices: Invoice[];
+  contracts: Contract[];
+  tickets: Ticket[];
+  deliverables: Deliverable[];
+  /**
+   * Portal tool ids enabled per client company — what each client bought.
+   * Kept as plain strings so the CRM core doesn't depend on the portal's
+   * tool registry; lib/portal/portal.ts interprets them.
+   */
+  entitlements: Record<string, string[]>;
   rules: AutomationRule[];
   team: TeamMember[];
   /** Notification ids the user has dismissed. */

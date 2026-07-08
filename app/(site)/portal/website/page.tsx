@@ -6,7 +6,7 @@ import { WebsiteTool } from "@/components/portal/tools";
 
 export default function PortalWebsitePage() {
   return (
-    <Window title="Website & Hosting" path="~/portal/website" size="lg">
+    <Window title="Website" path="~/portal/website" size="lg">
       <PortalGate tool="website">
         {(company) => <WebsiteTool company={company} />}
       </PortalGate>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import Window from "@/components/os/Window";
+import ProductPreview from "@/components/products/ProductPreview";
 import {
   getProductModule,
   productModules,
@@ -65,25 +66,28 @@ export default async function ProductModulePage({ params }: Props) {
               {mod.tagline}
             </p>
           </div>
-          {mod.liveUrl ? (
-            <a
-              href={mod.liveUrl}
-              target="_blank"
-              rel="noopener"
-              className="ml-auto inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
-            >
-              Launch {mod.name}
-              <ArrowUpRight className="size-5" />
-            </a>
-          ) : (
-            <Link
-              href="/contact?type=waitlist"
-              className="ml-auto inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
-            >
-              Join the waitlist
-              <ArrowRight className="size-5" />
-            </Link>
-          )}
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <ProductPreview slug={mod.slug} name={mod.name} />
+            {mod.liveUrl ? (
+              <a
+                href={mod.liveUrl}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+              >
+                Launch {mod.name}
+                <ArrowUpRight className="size-5" />
+              </a>
+            ) : (
+              <Link
+                href="/contact?type=waitlist"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+              >
+                Join the waitlist
+                <ArrowRight className="size-5" />
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Overview */}

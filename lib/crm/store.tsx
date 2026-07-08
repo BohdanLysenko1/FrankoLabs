@@ -15,16 +15,24 @@ import {
   type Activity,
   type ActivityType,
   type AutomationRule,
+  type AutomationTrigger,
   type CalEvent,
   type Company,
   type Contact,
+  type Contract,
   type CrmState,
   type Deal,
+  type Deliverable,
+  type DeliverableKind,
+  type Invoice,
   type OpenRequest,
   type PlanId,
   type Stage,
   type Task,
   type TeamRole,
+  type Ticket,
+  type TicketMessage,
+  type TicketStatus,
 } from "./types";
 
 /**
@@ -48,6 +56,7 @@ function isEphemeralSession(): boolean {
 type Action =
   | { type: "complete-onboarding"; workspaceName: string; template: "agency" | "simple"; withSampleData: boolean }
   | { type: "reset-demo" }
+  | { type: "import-state"; state: Partial<CrmState> }
   | { type: "set-workspace-name"; name: string }
   | { type: "set-plan"; plan: PlanId }
   | { type: "add-contact"; contact: Contact }
@@ -67,6 +76,22 @@ type Action =
   | { type: "update-event"; id: string; patch: Partial<CalEvent> }
   | { type: "delete-event"; id: string }
   | { type: "log-activity"; activity: Activity }
+  | { type: "add-invoice"; invoice: Invoice }
+  | { type: "pay-invoice"; id: string; at: number }
+  | { type: "add-contract"; contract: Contract }
+  | { type: "update-contract"; id: string; patch: Partial<Contract> }
+  | { type: "add-ticket"; ticket: Ticket }
+  | { type: "ticket-message"; ticketId: string; message: TicketMessage; status?: TicketStatus }
+  | { type: "set-ticket-status"; id: string; status: TicketStatus }
+  | { type: "set-entitlements"; companyId: string; toolIds: string[] }
+  | { type: "add-deliverable"; deliverable: Deliverable }
+  | {
+      type: "respond-deliverable";
+      id: string;
+      status: "approved" | "changes_requested";
+      comment: string;
+      at: number;
+    }
   | { type: "rename-stage"; id: string; name: string }
   | { type: "add-stage"; stage: Stage; beforeClosed: true }
   | { type: "remove-stage"; id: string }
@@ -88,6 +113,11 @@ function emptyState(base: CrmState): CrmState {
     tasks: [],
     activities: [],
     events: [],
+    invoices: [],
+    contracts: [],
+    tickets: [],
+    deliverables: [],
+    entitlements: {},
   };
 }
 
@@ -107,6 +137,16 @@ function reducer(state: CrmState, action: Action): CrmState {
     }
     case "reset-demo": {
       return { ...makeSeedState(), onboarded: true };
+    }
+    case "import-state": {
+      // Spread over a fresh seed so fields added after the backup was taken
+      // get defaults, mirroring how initState restores from localStorage.
+      return {
+        ...makeSeedState(),
+        ...action.state,
+        ui: { openRequest: null },
+        onboarded: true,
+      };
     }
     case "set-workspace-name":
       return { ...state, workspace: { ...state.workspace, name: action.name } };
@@ -218,6 +258,78 @@ function reducer(state: CrmState, action: Action): CrmState {
       };
     case "log-activity":
       return { ...state, activities: [action.activity, ...state.activities] };
+    case "add-invoice":
+      return { ...state, invoices: [action.invoice, ...state.invoices] };
+    case "pay-invoice":
+      return {
+        ...state,
+        invoices: state.invoices.map((i) =>
+          i.id === action.id && i.status === "due"
+            ? { ...i, status: "paid", paidAt: action.at }
+            : i,
+        ),
+      };
+    case "add-contract":
+      return { ...state, contracts: [action.contract, ...state.contracts] };
+    case "update-contract":
+      return {
+        ...state,
+        contracts: state.contracts.map((c) =>
+          c.id === action.id ? { ...c, ...action.patch } : c,
+        ),
+      };
+    case "add-ticket":
+      return { ...state, tickets: [action.ticket, ...state.tickets] };
+    case "ticket-message":
+      return {
+        ...state,
+        tickets: state.tickets.map((t) =>
+          t.id === action.ticketId
+            ? {
+                ...t,
+                messages: [...t.messages, action.message],
+                status: action.status ?? t.status,
+                updatedAt: action.message.at,
+              }
+            : t,
+        ),
+      };
+    case "set-ticket-status":
+      return {
+        ...state,
+        tickets: state.tickets.map((t) =>
+          t.id === action.id
+            ? { ...t, status: action.status, updatedAt: Date.now() }
+            : t,
+        ),
+      };
+    case "set-entitlements":
+      return {
+        ...state,
+        entitlements: {
+          ...state.entitlements,
+          [action.companyId]: action.toolIds,
+        },
+      };
+    case "add-deliverable":
+      return {
+        ...state,
+        deliverables: [action.deliverable, ...state.deliverables],
+      };
+    case "respond-deliverable":
+      return {
+        ...state,
+        deliverables: state.deliverables.map((d) =>
+          d.id === action.id
+            ? {
+                ...d,
+                status: action.status,
+                clientComment: action.comment,
+                respondedAt: action.at,
+              }
+            : d,
+        ),
+      };
     case "rename-stage":
       return {
         ...state,
@@ -324,24 +436,32 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       },
     });
 
-  /** Fire enabled automation rules matching a deal trigger. */
+  /**
+   * Fire enabled automation rules matching a trigger. The context names the
+   * record that fired ({deal} in templates) and links created work back to
+   * it — deals, contracts, tickets and invoices all pass through here.
+   */
+  type AutomationContext = {
+    name: string;
+    dealId?: string | null;
+    contactId?: string | null;
+    companyId?: string | null;
+  };
   const runAutomations = (
-    kinds: ("deal-created" | "stage-enter" | "deal-won")[],
-    deal: Deal,
-    stageId: string,
+    kinds: AutomationTrigger["type"][],
+    ctx: AutomationContext,
+    stageId?: string,
   ) => {
     for (const rule of state.rules) {
       if (!rule.enabled) continue;
       const t = rule.trigger;
       const hit =
-        (t.type === "deal-created" && kinds.includes("deal-created")) ||
-        (t.type === "deal-won" && kinds.includes("deal-won")) ||
-        (t.type === "stage-enter" &&
-          kinds.includes("stage-enter") &&
-          t.stageId === stageId);
+        t.type === "stage-enter"
+          ? kinds.includes("stage-enter") && t.stageId === stageId
+          : kinds.includes(t.type);
       if (!hit) continue;
 
-      const fill = (s: string) => s.replaceAll("{deal}", deal.name);
+      const fill = (s: string) => s.replaceAll("{deal}", ctx.name);
       if (rule.action.type === "create-task") {
         dispatch({
           type: "add-task",
@@ -350,8 +470,8 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
             title: fill(rule.action.title),
             dueAt: Date.now() + rule.action.offsetDays * DAY,
             done: false,
-            dealId: deal.id,
-            contactId: deal.contactId,
+            dealId: ctx.dealId ?? null,
+            contactId: ctx.contactId ?? null,
             createdAt: Date.now(),
           },
         });
@@ -359,9 +479,9 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         logActivity({
           type: "note",
           summary: fill(rule.action.text),
-          dealId: deal.id,
-          contactId: deal.contactId,
-          companyId: deal.companyId,
+          dealId: ctx.dealId,
+          contactId: ctx.contactId,
+          companyId: ctx.companyId,
           clientVisible: true,
         });
       } else if (rule.action.type === "create-event") {
@@ -373,8 +493,8 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
             kind: rule.action.kind,
             startAt: Date.now() + rule.action.offsetDays * DAY,
             durationMin: 30,
-            dealId: deal.id,
-            contactId: deal.contactId,
+            dealId: ctx.dealId ?? null,
+            contactId: ctx.contactId ?? null,
             notes: "",
             done: false,
           },
@@ -383,11 +503,18 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       logActivity({
         type: "system",
         summary: `Automation ran: ${rule.name}.`,
-        dealId: deal.id,
-        companyId: deal.companyId,
+        dealId: ctx.dealId,
+        companyId: ctx.companyId,
       });
     }
   };
+
+  const dealCtx = (deal: Deal): AutomationContext => ({
+    name: deal.name,
+    dealId: deal.id,
+    contactId: deal.contactId,
+    companyId: deal.companyId,
+  });
 
   return {
     completeOnboarding: (
@@ -402,6 +529,8 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         withSampleData,
       }),
     resetDemo: () => dispatch({ type: "reset-demo" }),
+    importState: (state: Partial<CrmState>) =>
+      dispatch({ type: "import-state", state }),
     setWorkspaceName: (name: string) =>
       dispatch({ type: "set-workspace-name", name }),
     setPlan: (plan: PlanId) => dispatch({ type: "set-plan", plan }),
@@ -441,7 +570,7 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         closedAt: null,
       };
       dispatch({ type: "add-deal", deal });
-      runAutomations(["deal-created"], deal, deal.stageId);
+      runAutomations(["deal-created"], dealCtx(deal), deal.stageId);
       return deal;
     },
     updateDeal: (id: string, patch: Partial<Deal>) =>
@@ -460,7 +589,7 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       });
       runAutomations(
         stage.kind === "won" ? ["stage-enter", "deal-won"] : ["stage-enter"],
-        deal,
+        dealCtx(deal),
         stageId,
       );
     },
@@ -514,6 +643,311 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
     },
 
     logActivity,
+
+    addInvoice: (input: {
+      companyId: string;
+      dealId?: string | null;
+      label: string;
+      amount: number;
+      dueInDays?: number;
+    }) => {
+      const now = Date.now();
+      // Continue the visible numbering from the highest number on record.
+      const top = state.invoices.reduce((max, i) => {
+        const n = Number(i.number.replace(/\D/g, ""));
+        return Number.isFinite(n) && n > max ? n : max;
+      }, 1041);
+      const invoice: Invoice = {
+        id: uid(),
+        number: `INV-${top + 1}`,
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        label: input.label,
+        amount: input.amount,
+        issuedAt: now,
+        dueAt: now + (input.dueInDays ?? 14) * DAY,
+        paidAt: null,
+        status: "due",
+      };
+      dispatch({ type: "add-invoice", invoice });
+      logActivity({
+        type: "system",
+        summary: `Invoice ${invoice.number} issued — ${invoice.label}.`,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+        clientVisible: true,
+      });
+      return invoice;
+    },
+    /** Demo payment — flips a due invoice to paid and tells both sides. */
+    payInvoice: (id: string) => {
+      const invoice = state.invoices.find((i) => i.id === id);
+      if (!invoice || invoice.status !== "due") return;
+      dispatch({ type: "pay-invoice", id, at: Date.now() });
+      logActivity({
+        type: "system",
+        summary: `Invoice ${invoice.number} paid — ${invoice.label}.`,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+        clientVisible: true,
+      });
+      runAutomations(["invoice-paid"], {
+        name: invoice.label,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+      });
+    },
+
+    sendContract: (input: {
+      companyId: string;
+      dealId?: string | null;
+      title: string;
+      summary: string;
+      amount: number;
+      terms?: string[];
+    }) => {
+      const contract: Contract = {
+        id: uid(),
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        title: input.title,
+        summary: input.summary,
+        amount: input.amount,
+        terms: input.terms ?? [
+          "50% deposit invoiced on signature, balance on delivery.",
+          "Scope changes are quoted before work starts.",
+        ],
+        status: "sent",
+        sentAt: Date.now(),
+        viewedAt: null,
+        signedAt: null,
+        signedBy: null,
+      };
+      dispatch({ type: "add-contract", contract });
+      logActivity({
+        type: "system",
+        summary: `Contract sent for signature: ${contract.title}.`,
+        dealId: contract.dealId,
+        companyId: contract.companyId,
+        clientVisible: true,
+      });
+      return contract;
+    },
+    /** First open in the portal — flips "sent" to "viewed" for the agency. */
+    markContractViewed: (id: string) => {
+      const contract = state.contracts.find((c) => c.id === id);
+      if (!contract || contract.status !== "sent") return;
+      dispatch({
+        type: "update-contract",
+        id,
+        patch: { status: "viewed", viewedAt: Date.now() },
+      });
+    },
+    /**
+     * "Signed means started": the signature flips the contract, invoices the
+     * 50% deposit and drops a kickoff task into the agency's queue.
+     */
+    signContract: (id: string, signerName: string) => {
+      const contract = state.contracts.find((c) => c.id === id);
+      if (!contract || contract.status === "signed") return;
+      const now = Date.now();
+      dispatch({
+        type: "update-contract",
+        id,
+        patch: { status: "signed", signedAt: now, signedBy: signerName },
+      });
+      const top = state.invoices.reduce((max, i) => {
+        const n = Number(i.number.replace(/\D/g, ""));
+        return Number.isFinite(n) && n > max ? n : max;
+      }, 1041);
+      dispatch({
+        type: "add-invoice",
+        invoice: {
+          id: uid(),
+          number: `INV-${top + 1}`,
+          companyId: contract.companyId,
+          dealId: contract.dealId,
+          label: `${contract.title} — 50% deposit`,
+          amount: Math.round(contract.amount / 2),
+          issuedAt: now,
+          dueAt: now + 14 * DAY,
+          paidAt: null,
+          status: "due",
+        },
+      });
+      dispatch({
+        type: "add-task",
+        task: {
+          id: uid(),
+          title: `Kick off: ${contract.title}`,
+          dueAt: now + 2 * DAY,
+          done: false,
+          dealId: contract.dealId,
+          contactId: null,
+          createdAt: now,
+        },
+      });
+      logActivity({
+        type: "system",
+        summary: `Contract signed by ${signerName}: ${contract.title}. Deposit invoiced, kickoff scheduled.`,
+        dealId: contract.dealId,
+        companyId: contract.companyId,
+        clientVisible: true,
+      });
+      runAutomations(["contract-signed"], {
+        name: contract.title,
+        dealId: contract.dealId,
+        companyId: contract.companyId,
+      });
+    },
+
+    createTicket: (input: {
+      companyId: string;
+      contactId?: string | null;
+      author: string;
+      topic: string;
+      subject: string;
+      details?: string;
+    }) => {
+      const now = Date.now();
+      const ticket: Ticket = {
+        id: uid(),
+        companyId: input.companyId,
+        contactId: input.contactId ?? null,
+        topic: input.topic,
+        subject: input.subject,
+        status: "open",
+        createdAt: now,
+        updatedAt: now,
+        messages: [
+          {
+            id: uid(),
+            from: "client",
+            author: input.author,
+            text: input.details?.trim() || input.subject,
+            at: now,
+          },
+        ],
+      };
+      dispatch({ type: "add-ticket", ticket });
+      logActivity({
+        type: "note",
+        summary: `Support request from ${input.author}: ${input.subject}`,
+        contactId: ticket.contactId,
+        companyId: ticket.companyId,
+      });
+      runAutomations(["ticket-opened"], {
+        name: ticket.subject,
+        contactId: ticket.contactId,
+        companyId: ticket.companyId,
+      });
+      return ticket;
+    },
+    replyTicket: (
+      id: string,
+      from: "client" | "agency",
+      author: string,
+      text: string,
+    ) => {
+      const ticket = state.tickets.find((t) => t.id === id);
+      if (!ticket || !text.trim()) return;
+      dispatch({
+        type: "ticket-message",
+        ticketId: id,
+        message: { id: uid(), from, author, text: text.trim(), at: Date.now() },
+        // An agency reply on a fresh ticket implicitly starts work on it.
+        status:
+          from === "agency" && ticket.status === "open"
+            ? "in_progress"
+            : undefined,
+      });
+    },
+    setTicketStatus: (id: string, status: TicketStatus) =>
+      dispatch({ type: "set-ticket-status", id, status }),
+
+    setEntitlements: (companyId: string, toolIds: string[]) =>
+      dispatch({ type: "set-entitlements", companyId, toolIds }),
+
+    /** Post work for client review — shows up in their Projects tool. */
+    addDeliverable: (input: {
+      companyId: string;
+      dealId?: string | null;
+      title: string;
+      kind: DeliverableKind;
+      url: string;
+      note?: string;
+    }) => {
+      const deliverable: Deliverable = {
+        id: uid(),
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        title: input.title,
+        kind: input.kind,
+        url: input.url,
+        note: input.note?.trim() ?? "",
+        status: "in_review",
+        postedAt: Date.now(),
+        respondedAt: null,
+        clientComment: "",
+      };
+      dispatch({ type: "add-deliverable", deliverable });
+      logActivity({
+        type: "system",
+        summary: `Ready for your review: ${deliverable.title}.`,
+        dealId: deliverable.dealId,
+        companyId: deliverable.companyId,
+        clientVisible: true,
+      });
+      return deliverable;
+    },
+    /**
+     * Client verdict from the portal. Approvals celebrate; change requests
+     * become a due-tomorrow task so the comment never gets lost.
+     */
+    respondDeliverable: (
+      id: string,
+      status: "approved" | "changes_requested",
+      comment: string,
+    ) => {
+      const deliverable = state.deliverables.find((d) => d.id === id);
+      if (!deliverable || deliverable.status !== "in_review") return;
+      dispatch({
+        type: "respond-deliverable",
+        id,
+        status,
+        comment: comment.trim(),
+        at: Date.now(),
+      });
+      if (status === "approved") {
+        logActivity({
+          type: "system",
+          summary: `Deliverable approved: ${deliverable.title}.`,
+          dealId: deliverable.dealId,
+          companyId: deliverable.companyId,
+          clientVisible: true,
+        });
+      } else {
+        dispatch({
+          type: "add-task",
+          task: {
+            id: uid(),
+            title: `Revise: ${deliverable.title}${comment.trim() ? ` — "${comment.trim()}"` : ""}`,
+            dueAt: Date.now() + DAY,
+            done: false,
+            dealId: deliverable.dealId,
+            contactId: null,
+            createdAt: Date.now(),
+          },
+        });
+        logActivity({
+          type: "note",
+          summary: `Changes requested on ${deliverable.title}${comment.trim() ? `: "${comment.trim()}"` : "."}`,
+          dealId: deliverable.dealId,
+          companyId: deliverable.companyId,
+          clientVisible: true,
+        });
+      }
+    },
 
     renameStage: (id: string, name: string) =>
       dispatch({ type: "rename-stage", id, name }),

@@ -19,6 +19,8 @@ export type OSApp = {
   description: string;
   /** Full-screen apps launch in their own tab, like opening a program. */
   newTab?: boolean;
+  /** Count bubble on the dock icon — things waiting on the user. */
+  badge?: number;
 };
 
 /** The applications installed in Franko OS. Order = dock order. */

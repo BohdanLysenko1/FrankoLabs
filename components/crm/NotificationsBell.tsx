@@ -6,9 +6,13 @@ import {
   AlertTriangle,
   Bell,
   CheckCheck,
+  FilePen,
   Flame,
   Kanban,
+  LifeBuoy,
   ListChecks,
+  PackageOpen,
+  Receipt,
   Zap,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
@@ -63,6 +67,93 @@ function useNotifications(now: number): Notif[] {
       });
     }
 
+    const companyName = (id: string | null) =>
+      state.companies.find((c) => c.id === id)?.name ?? "a client";
+
+    for (const t of state.tickets) {
+      if (t.status === "resolved") continue;
+      const last = t.messages[t.messages.length - 1];
+      if (last?.from !== "client") continue;
+      items.push({
+        id: `tic-${t.id}-${t.messages.length}`,
+        icon: LifeBuoy,
+        tone: "text-warn",
+        title:
+          t.messages.length === 1 ? "New support ticket" : "Client replied",
+        detail: `${companyName(t.companyId)}: ${t.subject}`,
+        href: "/crm/support",
+        at: last.at,
+      });
+    }
+
+    for (const c of state.contracts) {
+      if (c.status === "viewed" && c.viewedAt && now - c.viewedAt <= 3 * DAY) {
+        items.push({
+          id: `con-viewed-${c.id}`,
+          icon: FilePen,
+          tone: "text-warn",
+          title: "Contract viewed, not signed",
+          detail: `${companyName(c.companyId)} opened “${c.title}”`,
+          href: "/crm/contracts",
+          at: c.viewedAt,
+        });
+      } else if (
+        c.status === "signed" &&
+        c.signedAt &&
+        now - c.signedAt <= 3 * DAY
+      ) {
+        items.push({
+          id: `con-signed-${c.id}`,
+          icon: FilePen,
+          tone: "text-accent",
+          title: "Contract signed",
+          detail: `${c.signedBy} signed “${c.title}”`,
+          href: "/crm/contracts",
+          at: c.signedAt,
+        });
+      }
+    }
+
+    for (const i of state.invoices) {
+      if (i.status === "paid" && i.paidAt && now - i.paidAt <= 3 * DAY) {
+        items.push({
+          id: `inv-paid-${i.id}`,
+          icon: Receipt,
+          tone: "text-accent",
+          title: "Invoice paid",
+          detail: `${i.number} · ${companyName(i.companyId)} — ${i.label}`,
+          href: "/crm/billing",
+          at: i.paidAt,
+        });
+      } else if (i.status === "due" && i.dueAt < now) {
+        items.push({
+          id: `inv-over-${i.id}`,
+          icon: Receipt,
+          tone: "text-danger",
+          title: "Invoice overdue",
+          detail: `${i.number} · ${companyName(i.companyId)} — ${i.label}`,
+          href: "/crm/billing",
+          at: i.dueAt,
+        });
+      }
+    }
+
+    for (const d of state.deliverables) {
+      if (!d.respondedAt || now - d.respondedAt > 3 * DAY) continue;
+      items.push({
+        id: `del-${d.id}-${d.status}`,
+        icon: PackageOpen,
+        tone: d.status === "approved" ? "text-accent" : "text-warn",
+        title:
+          d.status === "approved"
+            ? "Deliverable approved"
+            : "Changes requested",
+        detail: `${companyName(d.companyId)}: ${d.title}${d.clientComment ? ` — “${d.clientComment}”` : ""}`,
+        href: "/crm/tasks",
+        at: d.respondedAt,
+      });
+    }
+
     for (const a of state.activities) {
       if (now - a.at > 3 * DAY) continue;
       if (a.type === "system" && a.summary.startsWith("Automation ran")) {
@@ -88,7 +179,12 @@ function useNotifications(now: number): Notif[] {
       }
     }
 
-    return items.slice(0, 20);
+    // Pulse signals (no timestamp) stay pinned on top; the rest is newest-first.
+    const pinned = items.filter((i) => i.at === null);
+    const dated = items
+      .filter((i) => i.at !== null)
+      .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+    return [...pinned, ...dated].slice(0, 20);
   }, [state, now]);
 }
 
@@ -127,7 +223,7 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
+        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-edge px-4 py-3">
             <p className="text-sm font-medium">Notifications</p>
             {unread.length > 0 && (

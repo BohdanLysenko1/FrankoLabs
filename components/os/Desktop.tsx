@@ -7,6 +7,8 @@ import MenuBar from "./MenuBar";
 import Dock from "./Dock";
 import CommandPalette from "./CommandPalette";
 import ContextMenu, { type ContextMenuState } from "./ContextMenu";
+import DesktopIcons from "./DesktopIcons";
+import ThemeDialog from "./ThemeDialog";
 
 export default function Desktop({ children }: { children: ReactNode }) {
   const desktopRef = useRef<HTMLDivElement>(null);
@@ -36,9 +38,11 @@ export default function Desktop({ children }: { children: ReactNode }) {
             <div className="wallpaper-glow wallpaper-glow-a" />
             <div className="wallpaper-glow wallpaper-glow-b" />
           </div>
+          <DesktopIcons />
           {children}
         </main>
         <Dock />
+        <ThemeDialog />
         <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
         <ContextMenu
           state={menu}

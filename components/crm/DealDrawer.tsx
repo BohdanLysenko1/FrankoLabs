@@ -3,10 +3,13 @@
 import { useState } from "react";
 import {
   CalendarDays,
+  CheckCircle2,
   Kanban,
   MessageSquare,
+  PackageOpen,
   Plus,
   Send,
+  Timer,
   Trash2,
   Trophy,
   X,
@@ -19,8 +22,133 @@ import {
   fmtTime,
   relTime,
   type Deal,
+  type DeliverableKind,
 } from "@/lib/crm/types";
 import { Drawer, Field, SectionLabel, inputCls } from "./ui";
+
+const DELIVERABLE_KINDS: { id: DeliverableKind; label: string }[] = [
+  { id: "design", label: "Design" },
+  { id: "staging", label: "Staging link" },
+  { id: "file", label: "File" },
+  { id: "doc", label: "Document" },
+];
+
+/** Post work for client review and track their verdicts, per deal. */
+function DeliverablesSection({ deal }: { deal: Deal }) {
+  const { state, actions } = useCrm();
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<DeliverableKind>("design");
+  const [url, setUrl] = useState("");
+
+  const deliverables = state.deliverables
+    .filter((d) => d.dealId === deal.id)
+    .sort((a, b) => b.postedAt - a.postedAt);
+
+  if (!deal.companyId) return null;
+
+  const post = () => {
+    if (!title.trim() || !url.trim() || !deal.companyId) return;
+    actions.addDeliverable({
+      companyId: deal.companyId,
+      dealId: deal.id,
+      title: title.trim(),
+      kind,
+      url: url.trim(),
+    });
+    setTitle("");
+    setUrl("");
+  };
+
+  return (
+    <div className="mt-6">
+      <SectionLabel>Deliverables — client reviews these in their portal</SectionLabel>
+      <div className="mt-2 space-y-1.5">
+        {deliverables.map((d) => (
+          <div
+            key={d.id}
+            className="rounded-lg border border-edge bg-surface-2/40 px-3 py-2.5"
+          >
+            <div className="flex items-center gap-2.5 text-sm">
+              {d.status === "approved" ? (
+                <CheckCircle2 className="size-4 shrink-0 text-accent" />
+              ) : d.status === "changes_requested" ? (
+                <MessageSquare className="size-4 shrink-0 text-warn" />
+              ) : (
+                <Timer className="size-4 shrink-0 text-ink-faint" />
+              )}
+              <a
+                href={d.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-w-0 flex-1 truncate hover:text-accent"
+              >
+                {d.title}
+              </a>
+              <span
+                className={`shrink-0 text-[11px] font-medium ${
+                  d.status === "approved"
+                    ? "text-accent"
+                    : d.status === "changes_requested"
+                      ? "text-warn"
+                      : "text-ink-faint"
+                }`}
+              >
+                {d.status === "approved"
+                  ? "approved"
+                  : d.status === "changes_requested"
+                    ? "changes requested"
+                    : "in review"}
+              </span>
+            </div>
+            {d.clientComment && (
+              <p className="mt-1.5 pl-6.5 text-xs italic leading-relaxed text-ink-dim">
+                “{d.clientComment}”
+              </p>
+            )}
+          </div>
+        ))}
+        <div className="space-y-2 rounded-lg border border-dashed border-edge p-3">
+          <div className="flex gap-2">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What's ready for review?"
+              className={inputCls}
+            />
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as DeliverableKind)}
+              className={`${inputCls} w-32 shrink-0`}
+            >
+              {DELIVERABLE_KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && post()}
+              placeholder="Link (Figma, staging, file…)"
+              className={inputCls}
+            />
+            <button
+              onClick={post}
+              disabled={!title.trim() || !url.trim()}
+              aria-label="Post deliverable"
+              className="shrink-0 rounded-xl bg-accent px-3.5 text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <PackageOpen className="size-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DealDrawer({
   dealId,
@@ -283,6 +411,8 @@ export default function DealDrawer({
           </div>
         </div>
       </div>
+
+      <DeliverablesSection deal={deal} />
 
       {/* Quick note */}
       <div className="mt-6">

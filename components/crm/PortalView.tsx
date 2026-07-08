@@ -4,10 +4,12 @@ import { useState } from "react";
 import {
   Check,
   ExternalLink,
+  KeyRound,
   Link2,
   MailPlus,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
+import { clearClientCredential, useAccounts } from "@/lib/accounts";
 import { initials } from "@/lib/crm/types";
 import {
   PORTAL_TOOLS,
@@ -22,10 +24,18 @@ import { Card, SectionLabel } from "./ui";
  * links (the invite email, once sending is real).
  */
 export default function PortalView() {
-  const { state } = useCrm();
+  const { state, actions } = useCrm();
+  const { clients: credentials } = useAccounts();
   const clients = state.companies.filter((c) => c.isClient);
   const prospects = state.companies.filter((c) => !c.isClient);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const toggleTool = (companyId: string, entitled: string[], toolId: string) => {
+    const next = entitled.includes(toolId)
+      ? entitled.filter((id) => id !== toolId)
+      : [...entitled, toolId];
+    actions.setEntitlements(companyId, next);
+  };
 
   const copyInvite = async (companyId: string) => {
     const link = `${window.location.origin}/login?invite=${companyId}`;
@@ -55,7 +65,8 @@ export default function PortalView() {
         <div className="mt-3 space-y-3">
           {clients.map((c) => {
             const contact = primaryContactFor(state, c.id);
-            const entitled = entitlementsFor(c);
+            const entitled = entitlementsFor(state, c);
+            const activated = Boolean(credentials[c.id]);
             return (
               <Card key={c.id} className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -70,7 +81,23 @@ export default function PortalView() {
                       {initials(contact?.name ?? c.name)}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-medium">{c.name}</p>
+                      <p className="flex items-center gap-2 truncate text-[15px] font-medium">
+                        {c.name}
+                        <span
+                          title={
+                            activated
+                              ? "The client set their password and can sign in"
+                              : "Waiting for the client to open their invite link"
+                          }
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                            activated
+                              ? "border-accent/30 bg-accent-dim text-accent"
+                              : "border-edge text-ink-faint"
+                          }`}
+                        >
+                          {activated ? "Active" : "Invited"}
+                        </span>
+                      </p>
                       <p className="truncate text-xs text-ink-faint">
                         {contact
                           ? `${contact.name} · ${contact.email}`
@@ -79,6 +106,24 @@ export default function PortalView() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {activated && (
+                      <button
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Reset ${c.name}'s portal access? Their current password stops working and the invite link will ask them to set a new one.`,
+                            )
+                          ) {
+                            clearClientCredential(c.id);
+                          }
+                        }}
+                        title="Revoke their password — the invite link sets a new one"
+                        className="flex items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
+                      >
+                        <KeyRound className="size-3.5" />
+                        Reset access
+                      </button>
+                    )}
                     <a
                       href={`/?portal-as=${c.id}`}
                       target="_blank"
@@ -110,21 +155,30 @@ export default function PortalView() {
                     </button>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                <p className="mt-4 text-[11px] font-medium uppercase tracking-widest text-ink-faint">
+                  Tools in their portal — click to toggle
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {PORTAL_TOOLS.map((t) => {
                     const on = entitled.includes(t.id);
                     return (
-                      <span
+                      <button
                         key={t.id}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                        onClick={() => toggleTool(c.id, entitled, t.id)}
+                        title={
                           on
-                            ? "border-accent/30 bg-accent-dim text-accent"
-                            : "border-edge text-ink-faint line-through"
+                            ? `Remove ${t.name} from ${c.name}'s portal`
+                            : `Add ${t.name} to ${c.name}'s portal`
+                        }
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          on
+                            ? "border-accent/30 bg-accent-dim text-accent hover:border-accent/60"
+                            : "border-edge text-ink-faint line-through hover:border-edge-strong hover:text-ink-dim"
                         }`}
                       >
                         <t.icon className="size-3" />
                         {t.name}
-                      </span>
+                      </button>
                     );
                   })}
                 </div>

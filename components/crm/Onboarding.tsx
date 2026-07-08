@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Check, Database, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  Database,
+  KeyRound,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import LogoMark from "@/components/os/LogoMark";
 import { useCrm } from "@/lib/crm/store";
+import { createOwner } from "@/lib/accounts";
 import { inputCls } from "./ui";
 
 type Template = "agency" | "simple";
@@ -33,10 +42,49 @@ export default function Onboarding() {
   const { actions } = useCrm();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [template, setTemplate] = useState<Template>("agency");
   const [sampleData, setSampleData] = useState(true);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const finish = () =>
+  const submitAccount = (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!ownerName.trim() || !ownerEmail.includes("@")) {
+      setAccountError("Add your name and a valid email.");
+      return;
+    }
+    if (ownerPassword.length < 8) {
+      setAccountError("Password needs at least 8 characters.");
+      return;
+    }
+    setAccountError(null);
+    setStep(2);
+  };
+
+  const finish = async () => {
+    const code = await createOwner({
+      name: ownerName.trim(),
+      email: ownerEmail.trim(),
+      password: ownerPassword,
+    });
+    setRecoveryCode(code);
+  };
+
+  const copyCode = async () => {
+    if (!recoveryCode) return;
+    try {
+      await navigator.clipboard.writeText(recoveryCode);
+      setCopied(true);
+    } catch {
+      window.prompt("Recovery code:", recoveryCode);
+    }
+  };
+
+  const enterWorkspace = () =>
     actions.completeOnboarding(name.trim() || "My workspace", template, sampleData);
 
   return (
@@ -44,11 +92,11 @@ export default function Onboarding() {
       <div className="w-full max-w-lg">
         {/* Progress */}
         <div className="mb-6 flex items-center justify-center gap-1.5">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
               className={`h-1 rounded-full transition-all ${
-                i <= step ? "w-8 bg-accent" : "w-4 bg-surface-3"
+                recoveryCode || i <= step ? "w-8 bg-accent" : "w-4 bg-surface-3"
               }`}
             />
           ))}
@@ -56,7 +104,43 @@ export default function Onboarding() {
 
         <div className="rounded-2xl border border-edge bg-surface p-8 shadow-2xl shadow-black/50">
           <AnimatePresence mode="wait">
-            {step === 0 && (
+            {recoveryCode ? (
+              <motion.div
+                key="recovery"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ShieldCheck className="size-10 text-accent" />
+                <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+                  Save your recovery code
+                </h1>
+                <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">
+                  This is the only way back in if you forget your password.
+                  It&apos;s shown once — store it somewhere safe, like your
+                  password manager.
+                </p>
+                <button
+                  onClick={copyCode}
+                  className="mt-5 flex w-full items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent-dim/50 px-5 py-4 text-left font-mono text-lg tracking-wider transition hover:border-accent/70"
+                >
+                  {recoveryCode}
+                  {copied ? (
+                    <Check className="size-5 shrink-0 text-accent" />
+                  ) : (
+                    <Copy className="size-5 shrink-0 text-ink-dim" />
+                  )}
+                </button>
+                <button
+                  onClick={enterWorkspace}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+                >
+                  I&apos;ve saved it — open my workspace
+                  <ArrowRight className="size-5" />
+                </button>
+              </motion.div>
+            ) : step === 0 ? (
               <motion.div
                 key="welcome"
                 initial={{ opacity: 0, y: 8 }}
@@ -95,9 +179,83 @@ export default function Onboarding() {
                   <ArrowRight className="size-5" />
                 </button>
               </motion.div>
-            )}
-
-            {step === 1 && (
+            ) : step === 1 ? (
+              <motion.form
+                key="account"
+                onSubmit={submitAccount}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <KeyRound className="size-9 text-accent" />
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+                  Create your owner account
+                </h1>
+                <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">
+                  Your workspace is yours alone — the CRM asks for this
+                  password on this browser, and client portals get their own
+                  logins.
+                </p>
+                <div className="mt-5 space-y-4">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-faint">
+                      Your name
+                    </span>
+                    <input
+                      autoFocus
+                      value={ownerName}
+                      onChange={(e) => setOwnerName(e.target.value)}
+                      placeholder="e.g. Bohdan"
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-faint">
+                      Email
+                    </span>
+                    <input
+                      type="email"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-faint">
+                      Password
+                    </span>
+                    <input
+                      type="password"
+                      value={ownerPassword}
+                      onChange={(e) => setOwnerPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+                {accountError && (
+                  <p className="mt-3 text-sm text-red-400">{accountError}</p>
+                )}
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="rounded-xl border border-edge px-5 py-3 text-sm font-medium text-ink-dim transition hover:text-ink"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+                  >
+                    Continue
+                    <ArrowRight className="size-5" />
+                  </button>
+                </div>
+              </motion.form>
+            ) : step === 2 ? (
               <motion.div
                 key="pipeline"
                 initial={{ opacity: 0, y: 8 }}
@@ -147,13 +305,13 @@ export default function Onboarding() {
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button
-                    onClick={() => setStep(0)}
+                    onClick={() => setStep(1)}
                     className="rounded-xl border border-edge px-5 py-3 text-sm font-medium text-ink-dim transition hover:text-ink"
                   >
                     Back
                   </button>
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(3)}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
                   >
                     Continue
@@ -161,9 +319,7 @@ export default function Onboarding() {
                   </button>
                 </div>
               </motion.div>
-            )}
-
-            {step === 2 && (
+            ) : (
               <motion.div
                 key="data"
                 initial={{ opacity: 0, y: 8 }}
@@ -219,7 +375,7 @@ export default function Onboarding() {
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     className="rounded-xl border border-edge px-5 py-3 text-sm font-medium text-ink-dim transition hover:text-ink"
                   >
                     Back
@@ -228,7 +384,7 @@ export default function Onboarding() {
                     onClick={finish}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
                   >
-                    Open workspace
+                    Create workspace
                     <ArrowRight className="size-5" />
                   </button>
                 </div>
@@ -238,7 +394,8 @@ export default function Onboarding() {
         </div>
 
         <p className="mt-4 text-center text-xs text-ink-faint">
-          Demo environment — data lives in this tab and resets on reload.
+          Your workspace is saved in this browser — back it up anytime from
+          Settings.
         </p>
       </div>
     </div>

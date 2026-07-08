@@ -1,20 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Check,
+  Copy,
   CreditCard,
+  Download,
   Kanban,
+  KeyRound,
   Plus,
   RotateCcw,
+  ShieldCheck,
   SlidersHorizontal,
   Trash2,
+  Upload,
   Users,
   Zap,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
+import {
+  changeOwnerPassword,
+  createOwner,
+  useAccounts,
+} from "@/lib/accounts";
+import {
+  buildBackup,
+  downloadBackup,
+  getLastBackupAt,
+  parseBackup,
+  restoreAccounts,
+  type WorkspaceBackup,
+} from "@/lib/backup";
 import {
   fmtMoney,
   type AutomationAction,
@@ -106,18 +124,315 @@ function WorkspaceTab() {
         </div>
       </Card>
 
+      <AccountCard />
+      <BackupCard />
+
       <Card className="p-6">
-        <SectionLabel>Demo data</SectionLabel>
+        <SectionLabel>Reset workspace</SectionLabel>
         <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
-          This workspace runs in demo mode — data lives in this browser tab and
-          resets on reload. Restore the original sample dataset anytime.
+          Replace everything with the original sample dataset. Your owner
+          account and client passwords are kept — export a backup first if you
+          might want today&apos;s data back.
         </p>
-        <GhostButton className="mt-4" onClick={() => actions.resetDemo()}>
+        <GhostButton
+          className="mt-4"
+          onClick={() => {
+            if (
+              window.confirm(
+                "Replace all workspace data with the sample dataset? This can't be undone without a backup.",
+              )
+            ) {
+              actions.resetDemo();
+            }
+          }}
+        >
           <RotateCcw className="size-4" />
-          Reset demo data
+          Restore sample data
         </GhostButton>
       </Card>
     </div>
+  );
+}
+
+function AccountCard() {
+  const { owner } = useAccounts();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    if (!recoveryCode) return;
+    try {
+      await navigator.clipboard.writeText(recoveryCode);
+      setCopied(true);
+    } catch {
+      window.prompt("Recovery code:", recoveryCode);
+    }
+  };
+
+  // Workspaces onboarded before accounts existed: offer to add the lock.
+  if (!owner) {
+    return (
+      <Card className="p-6">
+        <SectionLabel>Account &amp; security</SectionLabel>
+        {recoveryCode ? (
+          <>
+            <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
+              Account created — the CRM asks for your password from now on.
+              Save this recovery code somewhere safe; it&apos;s shown once and
+              it&apos;s the only way back in if you forget the password.
+            </p>
+            <button
+              onClick={copyCode}
+              className="mt-4 flex w-full max-w-md items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent-dim/50 px-4 py-3 text-left font-mono text-base tracking-wider transition hover:border-accent/70"
+            >
+              {recoveryCode}
+              {copied ? (
+                <Check className="size-4 shrink-0 text-accent" />
+              ) : (
+                <Copy className="size-4 shrink-0 text-ink-dim" />
+              )}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
+              This workspace predates owner accounts, so the CRM opens without
+              a password. Create your owner account to lock it on this browser.
+            </p>
+            <div className="mt-4 grid max-w-md gap-3">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                className={inputCls}
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className={inputCls}
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password (8+ characters)"
+                className={inputCls}
+              />
+            </div>
+            {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
+            <PrimaryButton
+              className="mt-4"
+              onClick={async () => {
+                if (!name.trim() || !email.includes("@")) {
+                  setError("Add your name and a valid email.");
+                  return;
+                }
+                if (password.length < 8) {
+                  setError("Password needs at least 8 characters.");
+                  return;
+                }
+                setError(null);
+                setRecoveryCode(
+                  await createOwner({
+                    name: name.trim(),
+                    email: email.trim(),
+                    password,
+                  }),
+                );
+              }}
+            >
+              <ShieldCheck className="size-4" />
+              Secure this workspace
+            </PrimaryButton>
+          </>
+        )}
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <SectionLabel>Account &amp; security</SectionLabel>
+      <p className="mt-1.5 text-sm text-ink-dim">
+        Signed in as <span className="text-ink">{owner.name}</span> ·{" "}
+        {owner.email}. The lock keeps passers-by out of the CRM on this
+        browser; your recovery code (or latest backup file) resets a forgotten
+        password.
+      </p>
+      <div className="mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
+        <input
+          type="password"
+          value={current}
+          onChange={(e) => {
+            setCurrent(e.target.value);
+            setError(null);
+            setDone(false);
+          }}
+          placeholder="Current password"
+          className={inputCls}
+        />
+        <input
+          type="password"
+          value={next}
+          onChange={(e) => {
+            setNext(e.target.value);
+            setError(null);
+            setDone(false);
+          }}
+          placeholder="New password"
+          className={inputCls}
+        />
+        <PrimaryButton
+          onClick={async () => {
+            if (next.length < 8) {
+              setError("New password needs at least 8 characters.");
+              return;
+            }
+            if (await changeOwnerPassword(current, next)) {
+              setError(null);
+              setDone(true);
+              setCurrent("");
+              setNext("");
+            } else {
+              setError("Current password isn't right.");
+            }
+          }}
+        >
+          {done ? <Check className="size-4" /> : <KeyRound className="size-4" />}
+          {done ? "Changed" : "Change"}
+        </PrimaryButton>
+      </div>
+      {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
+    </Card>
+  );
+}
+
+function BackupCard() {
+  const { state, actions } = useCrm();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [lastBackup, setLastBackup] = useState(() => getLastBackupAt());
+  const [pending, setPending] = useState<WorkspaceBackup | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
+  const [exportedCode, setExportedCode] = useState<string | null>(null);
+
+  const exportNow = async () => {
+    const backup = await buildBackup(state);
+    downloadBackup(backup);
+    setLastBackup(backup.exportedAt);
+    setExportedCode(backup.recoveryCode);
+  };
+
+  const pickFile = async (file: File | undefined) => {
+    setImportError(null);
+    setImported(false);
+    if (!file) return;
+    const backup = parseBackup(await file.text());
+    if (!backup) {
+      setImportError("That file isn't a Franko workspace backup.");
+      return;
+    }
+    setPending(backup);
+  };
+
+  const confirmImport = () => {
+    if (!pending) return;
+    actions.importState(pending.state);
+    restoreAccounts(pending);
+    setPending(null);
+    setImported(true);
+  };
+
+  const counts = (s: WorkspaceBackup["state"]) =>
+    [
+      `${s.companies?.length ?? 0} companies`,
+      `${s.deals?.length ?? 0} deals`,
+      `${s.invoices?.length ?? 0} invoices`,
+      `${s.tickets?.length ?? 0} tickets`,
+    ].join(" · ");
+
+  return (
+    <Card className="p-6">
+      <SectionLabel>Data &amp; backup</SectionLabel>
+      <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
+        Your workspace lives in this browser&apos;s storage. Download a JSON
+        backup to keep it safe or move it to another machine — each export
+        includes a fresh recovery code, so your latest backup file can always
+        unlock the workspace.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <PrimaryButton onClick={exportNow}>
+          <Download className="size-4" />
+          Download backup
+        </PrimaryButton>
+        <GhostButton onClick={() => fileRef.current?.click()}>
+          <Upload className="size-4" />
+          Import backup
+        </GhostButton>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            void pickFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <span className="text-xs text-ink-faint">
+          {lastBackup
+            ? `Last backup ${new Date(lastBackup).toLocaleString()}`
+            : "No backup taken yet"}
+        </span>
+      </div>
+
+      {exportedCode && (
+        <p className="mt-3 max-w-lg rounded-xl border border-accent/30 bg-accent-dim/40 px-4 py-3 text-xs leading-relaxed text-ink-dim">
+          Backup saved. It contains your new recovery code{" "}
+          <span className="font-mono text-ink">{exportedCode}</span> — previous
+          codes no longer work.
+        </p>
+      )}
+
+      {importError && (
+        <p className="mt-3 text-sm text-red-400">{importError}</p>
+      )}
+      {imported && (
+        <p className="mt-3 text-sm text-accent">
+          Workspace restored from backup.
+        </p>
+      )}
+
+      {pending && (
+        <div className="mt-4 max-w-lg rounded-xl border border-edge bg-surface-2/60 p-4">
+          <p className="text-sm font-medium">
+            Replace this workspace with “{pending.workspaceName}”?
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-dim">
+            Backup from {new Date(pending.exportedAt).toLocaleString()} —{" "}
+            {counts(pending.state)}. Your current workspace (
+            {counts({ ...state, ui: undefined } as WorkspaceBackup["state"])})
+            and its sign-in credentials will be overwritten. This can&apos;t be
+            undone.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <PrimaryButton onClick={confirmImport}>
+              Replace workspace
+            </PrimaryButton>
+            <GhostButton onClick={() => setPending(null)}>Cancel</GhostButton>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -220,6 +535,9 @@ function PipelineTab() {
 function describeTrigger(t: AutomationTrigger, stages: Stage[]): string {
   if (t.type === "deal-created") return "When a deal is created";
   if (t.type === "deal-won") return "When a deal is won";
+  if (t.type === "contract-signed") return "When a contract is signed";
+  if (t.type === "ticket-opened") return "When a support ticket is opened";
+  if (t.type === "invoice-paid") return "When an invoice is paid";
   const stage = stages.find((s) => s.id === t.stageId);
   return `When a deal enters ${stage?.name ?? "a stage"}`;
 }
@@ -247,7 +565,13 @@ function AutomationsTab() {
         ? { type: "deal-created" }
         : trigger === "deal-won"
           ? { type: "deal-won" }
-          : { type: "stage-enter", stageId: trigger.replace("stage:", "") };
+          : trigger === "contract-signed"
+            ? { type: "contract-signed" }
+            : trigger === "ticket-opened"
+              ? { type: "ticket-opened" }
+              : trigger === "invoice-paid"
+                ? { type: "invoice-paid" }
+                : { type: "stage-enter", stageId: trigger.replace("stage:", "") };
     const parsedAction: AutomationAction =
       actionType === "create-task"
         ? { type: "create-task", title: text.trim(), offsetDays: Number(offset) }
@@ -273,7 +597,7 @@ function AutomationsTab() {
     <div className="space-y-6">
       <Card className="divide-y divide-edge">
         <p className="p-4 text-xs font-medium uppercase tracking-widest text-ink-faint">
-          Active rules — these actually run when deals move
+          Active rules — these run on deals, contracts, tickets and invoices
         </p>
         {state.rules.map((rule) => (
           <div key={rule.id} className="flex items-center gap-4 p-4">
@@ -344,6 +668,9 @@ function AutomationsTab() {
                   </option>
                 ))}
                 <option value="deal-won">A deal is won</option>
+                <option value="contract-signed">A contract is signed</option>
+                <option value="ticket-opened">A support ticket is opened</option>
+                <option value="invoice-paid">An invoice is paid</option>
               </select>
             </Field>
             <Field label="Then">

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, FilePen, PackageOpen, Receipt, ShieldCheck } from "lucide-react";
 import Widget from "@/components/os/Widget";
 import { useCrm } from "@/lib/crm/store";
 import { fmtDate, fmtMoney, relTime, type Company } from "@/lib/crm/types";
 import {
+  contractsFor,
+  deliverablesFor,
   entitlementsFor,
   firstNameOf,
   invoicesFor,
@@ -24,8 +26,8 @@ import {
 export default function ClientDesktop({ company }: { company: Company }) {
   const { state } = useCrm();
   const contact = primaryContactFor(state, company.id);
-  const entitled = entitlementsFor(company);
-  const tools = toolsFor(company);
+  const entitled = entitlementsFor(state, company);
+  const tools = toolsFor(state, company);
   const site = siteHealthFor(company);
   const projects = projectsFor(state, company.id).filter(
     (p) => p.stageKind === "open",
@@ -36,6 +38,12 @@ export default function ClientDesktop({ company }: { company: Company }) {
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + i.amount, 0);
   const updates = updatesFor(state, company.id);
+  const pendingContract = entitled.includes("contracts")
+    ? contractsFor(state, company.id).find((c) => c.status !== "signed")
+    : undefined;
+  const pendingDeliverable = entitled.includes("projects")
+    ? deliverablesFor(state, company.id).find((d) => d.status === "in_review")
+    : undefined;
 
   return (
     <div className="os-scroll h-full overflow-y-auto">
@@ -58,6 +66,67 @@ export default function ClientDesktop({ company }: { company: Company }) {
             the same system the team runs on.
           </p>
         </motion.div>
+
+        {(pendingContract || due || pendingDeliverable) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
+            className="mb-5 grid gap-3 sm:grid-cols-2"
+          >
+            {pendingContract && (
+              <Link
+                href="/portal/contracts"
+                className="group flex items-center gap-3.5 rounded-xl border border-accent/40 bg-accent-dim/50 p-4 transition hover:bg-accent-dim"
+              >
+                <FilePen className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {pendingContract.title}
+                  </p>
+                  <p className="text-xs text-ink-dim">
+                    Waiting on your signature — takes a minute
+                  </p>
+                </div>
+                <ArrowRight className="size-4 shrink-0 text-ink-faint transition group-hover:text-accent" />
+              </Link>
+            )}
+            {pendingDeliverable && (
+              <Link
+                href="/portal/projects"
+                className="group flex items-center gap-3.5 rounded-xl border border-accent/40 bg-accent-dim/50 p-4 transition hover:bg-accent-dim"
+              >
+                <PackageOpen className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {pendingDeliverable.title}
+                  </p>
+                  <p className="text-xs text-ink-dim">
+                    Ready for your review — approve or request changes
+                  </p>
+                </div>
+                <ArrowRight className="size-4 shrink-0 text-ink-faint transition group-hover:text-accent" />
+              </Link>
+            )}
+            {due && entitled.includes("billing") && (
+              <Link
+                href="/portal/billing"
+                className="group flex items-center gap-3.5 rounded-xl border border-edge bg-surface-2/60 p-4 transition hover:border-edge-strong"
+              >
+                <Receipt className="size-5 shrink-0 text-warn" strokeWidth={1.75} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {due.number} · {fmtMoney(due.amount)}
+                  </p>
+                  <p className="text-xs text-ink-dim">
+                    Due {fmtDate(due.dueAt)} — pay in one click
+                  </p>
+                </div>
+                <ArrowRight className="size-4 shrink-0 text-ink-faint transition group-hover:text-accent" />
+              </Link>
+            )}
+          </motion.div>
+        )}
 
         <div className="grid gap-5 md:grid-cols-2">
           {entitled.includes("website") && (
@@ -140,7 +209,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
                     {due ? fmtMoney(due.amount) : "$0"}
                   </p>
                   <p className="mt-1 text-xs text-ink-dim">
-                    {due ? `due · ${fmtDate(due.at)}` : "nothing due"}
+                    {due ? `due · ${fmtDate(due.dueAt)}` : "nothing due"}
                   </p>
                 </div>
                 <div>
@@ -185,7 +254,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
           </Widget>
 
           <Widget name="tools.installed" delay={0.3} className="md:col-span-2">
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {tools.map((t) => (
                 <Link
                   key={t.id}
