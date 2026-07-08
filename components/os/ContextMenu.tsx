@@ -11,11 +11,13 @@ import {
   Info,
   ArrowLeft,
   RotateCw,
+  PanelsTopLeft,
   Printer,
   Expand,
   Link2,
   type LucideIcon,
 } from "lucide-react";
+import { resetWindowLayouts } from "@/lib/windows";
 import { playSound } from "@/lib/sound";
 
 export type ContextMenuState = { x: number; y: number } | null;
@@ -38,6 +40,11 @@ const osItems: Item[] = [
   { icon: Boxes, label: "Browse services", href: "/solutions" },
   { icon: Tag, label: "View pricing", href: "/pricing" },
   { icon: Search, label: "Search…" },
+  {
+    icon: PanelsTopLeft,
+    label: "Reset window layout",
+    action: () => resetWindowLayouts(),
+  },
   { icon: Info, label: "About Franko Labs", href: "/about" },
 ];
 

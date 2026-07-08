@@ -173,6 +173,27 @@ body {
   }
 }
 
+/* Proposal PDF export: the builder portals a .proposal-print copy of the
+   document onto <body>, prints it, and removes it afterwards. */
+.proposal-print {
+  display: none;
+}
+@media print {
+  body > *:not(.proposal-print) {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .proposal-print {
+    display: block;
+  }
+  .proposal-print .proposal-paper {
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 @keyframes boot-fill {
   from {
     width: 0%;

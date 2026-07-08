@@ -9,9 +9,11 @@ import CommandPalette from "./CommandPalette";
 import ContextMenu, { type ContextMenuState } from "./ContextMenu";
 import DesktopIcons from "./DesktopIcons";
 import ThemeDialog from "./ThemeDialog";
+import { usePortalAuth } from "@/lib/portal/auth";
 
 export default function Desktop({ children }: { children: ReactNode }) {
   const desktopRef = useRef<HTMLDivElement>(null);
+  const { company } = usePortalAuth();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState>(null);
 
@@ -43,7 +45,12 @@ export default function Desktop({ children }: { children: ReactNode }) {
         </main>
         <Dock />
         <ThemeDialog />
-        <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
+        <CommandPalette
+          open={paletteOpen}
+          setOpen={setPaletteOpen}
+          scope="site"
+          company={company}
+        />
         <ContextMenu
           state={menu}
           onClose={() => setMenu(null)}

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { CheckCircle2, Eye, FilePen, Plus, Send } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
 import { fmtDate, fmtMoney, relTime, type Contract } from "@/lib/crm/types";
+import ProposalBuilder from "./ProposalBuilder";
 import {
   Card,
   Field,
@@ -57,11 +58,16 @@ export default function ContractsView() {
   const { state, actions } = useCrm();
   const companies = state.companies;
 
+  const [localTab, setTab] = useState<"agreements" | "builder">("agreements");
   const [creating, setCreating] = useState(false);
   const [companyId, setCompanyId] = useState("");
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [amount, setAmount] = useState("");
+
+  // A palette "New proposal" request pins the builder tab until consumed.
+  const tab =
+    state.ui.openRequest?.kind === "new-proposal" ? "builder" : localTab;
 
   const pending = state.contracts
     .filter((c) => c.status !== "signed")
@@ -90,22 +96,56 @@ export default function ContractsView() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-4 pb-16 md:p-8">
+    <div
+      className={`mx-auto space-y-8 p-4 pb-16 md:p-8 ${
+        tab === "builder" ? "max-w-7xl" : "max-w-4xl"
+      }`}
+    >
       <PageHeader
         title="Contracts"
         subtitle="From proposal to signature in one flow. Clients sign in their portal; a signature invoices the deposit and schedules kickoff automatically."
       >
-        <PrimaryButton
-          onClick={() => {
-            setCompanyId(companies[0]?.id ?? "");
-            setCreating(true);
-          }}
-        >
-          <Plus className="size-4" />
-          Send contract
-        </PrimaryButton>
+        {tab === "agreements" && (
+          <PrimaryButton
+            onClick={() => {
+              setCompanyId(companies[0]?.id ?? "");
+              setCreating(true);
+            }}
+          >
+            <Plus className="size-4" />
+            Send contract
+          </PrimaryButton>
+        )}
       </PageHeader>
 
+      <div className="flex items-center gap-2">
+        {(
+          [
+            ["agreements", "Agreements"],
+            ["builder", "Proposal builder"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+              tab === id
+                ? "border-accent/50 bg-accent-dim text-accent"
+                : "border-edge bg-surface-2/60 text-ink-dim hover:border-edge-strong hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "builder" ? (
+        <ProposalBuilder
+          onRequestConsumed={() => setTab("builder")}
+          onSent={() => setTab("agreements")}
+        />
+      ) : (
+        <>
       <div>
         <SectionLabel>Out for signature</SectionLabel>
         <Card className="mt-3 divide-y divide-edge">
@@ -131,6 +171,8 @@ export default function ContractsView() {
           )}
         </Card>
       </div>
+        </>
+      )}
 
       <Modal open={creating} onClose={() => setCreating(false)} title="Send contract">
         <form onSubmit={submit} className="space-y-4">

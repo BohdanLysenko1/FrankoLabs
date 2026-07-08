@@ -11,90 +11,27 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
-  BookOpen,
-  Building2,
-  CalendarDays,
-  ChartColumn,
   Command,
   Eye,
-  FilePen,
-  Globe,
-  Kanban,
-  KeyRound,
   LockKeyhole,
-  LayoutDashboard,
-  LifeBuoy,
-  ListChecks,
   LogOut,
-  MailPlus,
-  Receipt,
   RotateCcw,
   Search,
   Settings,
-  Sparkles,
-  Users,
 } from "lucide-react";
 import LogoMark from "@/components/os/LogoMark";
 import ThemeDialog from "@/components/os/ThemeDialog";
 import ThemeToggle from "@/components/os/ThemeToggle";
+import CommandPalette from "@/components/os/CommandPalette";
 import { useCrm } from "@/lib/crm/store";
+import { crmNav as nav, crmNavGroups as navGroups } from "@/lib/crm/nav";
+import { takeOpenRequest } from "@/lib/crm/types";
 import { computePulse, overallPulse, healthStyle } from "@/lib/crm/pulse";
 import { ownerSignOut, useAccounts, useOwnerSession } from "@/lib/accounts";
 import { Avatar } from "./ui";
 import Onboarding from "./Onboarding";
 import OwnerLock from "./OwnerLock";
-import CrmCommand from "./CrmCommand";
 import NotificationsBell from "./NotificationsBell";
-
-const navGroups: {
-  label: string | null;
-  items: { label: string; href: string; icon: typeof LayoutDashboard }[];
-}[] = [
-  {
-    label: null,
-    items: [
-      { label: "Dashboard", href: "/crm", icon: LayoutDashboard },
-      { label: "Pulse", href: "/crm/pulse", icon: Activity },
-      { label: "Reports", href: "/crm/reports", icon: ChartColumn },
-    ],
-  },
-  {
-    label: "Sell",
-    items: [
-      { label: "Pipeline", href: "/crm/pipeline", icon: Kanban },
-      { label: "Contacts", href: "/crm/contacts", icon: Users },
-      { label: "Companies", href: "/crm/companies", icon: Building2 },
-    ],
-  },
-  {
-    label: "Deliver",
-    items: [
-      { label: "Tasks", href: "/crm/tasks", icon: ListChecks },
-      { label: "Calendar", href: "/crm/calendar", icon: CalendarDays },
-      { label: "Websites", href: "/crm/websites", icon: Globe },
-      { label: "Support", href: "/crm/support", icon: LifeBuoy },
-    ],
-  },
-  {
-    label: "Money",
-    items: [
-      { label: "Billing", href: "/crm/billing", icon: Receipt },
-      { label: "Contracts", href: "/crm/contracts", icon: FilePen },
-    ],
-  },
-  {
-    label: "Platform",
-    items: [
-      { label: "Docs", href: "/crm/docs", icon: BookOpen },
-      { label: "Vault", href: "/crm/vault", icon: KeyRound },
-      { label: "Email", href: "/crm/email", icon: MailPlus },
-      { label: "Assistant", href: "/crm/assistant", icon: Sparkles },
-    ],
-  },
-];
-
-const nav = navGroups.flatMap((g) => g.items);
 
 const mobileNav = nav.filter((i) =>
   ["Dashboard", "Pulse", "Pipeline", "Tasks", "Support"].includes(i.label),
@@ -213,9 +150,17 @@ const subscribeNoop = () => () => {};
 
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { state } = useCrm();
+  const { state, actions } = useCrm();
   const { owner } = useAccounts();
   const ownerSignedIn = useOwnerSession();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Consume a record-open request stashed by the site's palette before it
+  // navigated here — the two layouts run separate store instances.
+  useEffect(() => {
+    const request = takeOpenRequest();
+    if (request) actions.requestOpen(request);
+  }, [actions]);
 
   // The store seeds itself with Date.now()-relative data, so the server and
   // client trees can disagree — render the app only after hydration.
@@ -346,11 +291,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             <div className="ml-auto flex items-center gap-2.5">
               <ThemeToggle />
               <button
-                onClick={() =>
-                  window.dispatchEvent(
-                    new KeyboardEvent("keydown", { key: "k", metaKey: true }),
-                  )
-                }
+                onClick={() => setPaletteOpen(true)}
                 className="hidden items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-2.5 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink lg:flex"
                 aria-label="Open command palette"
               >
@@ -392,7 +333,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         )}
       </div>
       <ThemeDialog />
-      <CrmCommand />
+      <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} scope="crm" />
     </div>
   );
 }

@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutGrid, Volume2, X } from "lucide-react";
+import { AppWindow, LayoutGrid, Volume2, X } from "lucide-react";
 import LogoMark from "./LogoMark";
 import StartMenu from "./StartMenu";
 import { apps, type OSApp } from "@/lib/apps";
 import { useCrm } from "@/lib/crm/store";
 import { usePortalAuth } from "@/lib/portal/auth";
 import { toolBadgesFor, toolsFor } from "@/lib/portal/portal";
+import { useMinimizedWindows } from "@/lib/windows";
 import { playSound } from "@/lib/sound";
 import { useTheme } from "@/lib/theme";
 
@@ -23,6 +24,7 @@ export default function Dock() {
   const { state } = useCrm();
   const { company } = usePortalAuth();
   const retro = useTheme() === "xp";
+  const minimized = useMinimizedWindows();
 
   // Signed-in clients see their desktop's tools, not the marketing apps —
   // with badges counting what's waiting on them.
@@ -97,6 +99,38 @@ export default function Dock() {
                 />
               </Link>
             </div>
+          );
+        })}
+        {minimized.length > 0 && (
+          <div className="mx-1.5 mb-4 h-10 w-px self-end bg-edge" />
+        )}
+        {minimized.map((win) => {
+          const Icon =
+            apps.find((a) => a.href !== "/" && win.href.startsWith(a.href))
+              ?.icon ?? AppWindow;
+          return (
+            <Link
+              key={win.href}
+              href={win.href}
+              title={`Restore ${win.title}`}
+              onClick={() => playSound("tap")}
+              className="flex w-16 flex-col items-center sm:w-[4.5rem]"
+            >
+              <motion.span
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                whileHover={{ scale: 1.12, y: -3 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                className="flex size-12 items-center justify-center rounded-xl border border-dashed border-edge-strong bg-surface-2/60 text-ink-dim hover:text-ink sm:size-13"
+              >
+                <Icon className="size-6 sm:size-7" strokeWidth={1.75} />
+              </motion.span>
+              <span className="mt-1 max-w-full truncate text-[11px] font-medium text-ink-dim sm:text-xs">
+                {win.title}
+              </span>
+              <span className="mt-0.5 size-1 rounded-full bg-ink-faint" />
+            </Link>
           );
         })}
       </nav>

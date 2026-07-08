@@ -63,12 +63,12 @@ function MarketingDashboard() {
   return (
     <div className="os-scroll h-full overflow-y-auto md:snap-y md:snap-mandatory">
       {/* Screen 1 — hero */}
-      <section className="relative flex min-h-full flex-col items-center justify-center px-4 md:snap-start">
+      <section className="relative flex min-h-full flex-col items-center px-4 md:snap-start">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="max-w-3xl pb-24 text-center"
+          className="my-auto max-w-3xl pb-24 text-center sm:[@media(min-height:740px)]:pb-6"
         >
           <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-edge bg-surface/60 px-4 py-1.5 text-xs font-medium tracking-wide text-ink-dim backdrop-blur">
             <span className="status-dot size-2 rounded-full bg-accent" />
@@ -120,7 +120,7 @@ function MarketingDashboard() {
           onClick={() =>
             dashboardRef.current?.scrollIntoView({ behavior: "smooth" })
           }
-          className="group absolute bottom-32 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-1.5 text-sm text-ink-dim transition hover:text-ink sm:flex"
+          className="group mb-32 hidden shrink-0 flex-col items-center gap-1.5 text-sm text-ink-dim transition hover:text-ink sm:[@media(min-height:740px)]:flex"
         >
           See your dashboard
           <ChevronDown className="size-5 animate-bounce text-accent" />

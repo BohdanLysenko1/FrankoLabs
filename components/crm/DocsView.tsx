@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { BookOpen, Search, Users } from "lucide-react";
 import { docArticles, type DocArticle } from "@/lib/docs";
+import { useCrm } from "@/lib/crm/store";
 import { Card, Drawer, PageHeader } from "./ui";
 
 const CATEGORIES = [
@@ -11,9 +12,22 @@ const CATEGORIES = [
 ];
 
 export default function DocsView() {
+  const { state, actions } = useCrm();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [active, setActive] = useState<DocArticle | null>(null);
+  const [localActive, setLocalActive] = useState<DocArticle | null>(null);
+
+  // Command palette requests land here via the store.
+  const req = state.ui.openRequest;
+  const active =
+    localActive ??
+    (req?.kind === "doc"
+      ? (docArticles.find((a) => a.slug === req.id) ?? null)
+      : null);
+  const setActive = (article: DocArticle | null) => {
+    setLocalActive(article);
+    if (!article && req) actions.requestOpen(null);
+  };
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();

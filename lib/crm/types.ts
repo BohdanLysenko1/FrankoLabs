@@ -127,12 +127,40 @@ export type OpenRequest = {
     | "contact"
     | "company"
     | "deal"
+    | "doc"
     | "new-deal"
     | "new-contact"
     | "new-task"
-    | "new-event";
+    | "new-event"
+    | "new-proposal";
   id?: string;
 };
+
+const OPEN_REQUEST_KEY = "franko-crm-open-request";
+
+/**
+ * Cross-layout handoff: the site's command palette stashes a request here
+ * before navigating into /crm, and the CRM shell consumes it on mount —
+ * the two layouts run separate store instances, so ui state can't carry over.
+ */
+export function stashOpenRequest(request: OpenRequest) {
+  try {
+    sessionStorage.setItem(OPEN_REQUEST_KEY, JSON.stringify(request));
+  } catch {
+    // Storage unavailable — navigation still lands on the right page.
+  }
+}
+
+export function takeOpenRequest(): OpenRequest | null {
+  try {
+    const raw = sessionStorage.getItem(OPEN_REQUEST_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(OPEN_REQUEST_KEY);
+    return JSON.parse(raw) as OpenRequest;
+  } catch {
+    return null;
+  }
+}
 
 export type InvoiceStatus = "due" | "paid";
 
