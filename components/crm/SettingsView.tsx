@@ -5,14 +5,12 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
-  Copy,
   CreditCard,
   Download,
   Kanban,
   KeyRound,
   Plus,
   RotateCcw,
-  ShieldCheck,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -20,23 +18,21 @@ import {
   Zap,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
-import {
-  changeOwnerPassword,
-  createOwner,
-  useAccounts,
-} from "@/lib/accounts";
+import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/supabase/session";
 import {
   buildBackup,
   downloadBackup,
   getLastBackupAt,
   parseBackup,
-  restoreAccounts,
+  readLegacyLocalWorkspace,
   type WorkspaceBackup,
 } from "@/lib/backup";
 import {
   fmtMoney,
   type AutomationAction,
   type AutomationTrigger,
+  type CrmState,
   type PlanId,
   type Stage,
   type TeamRole,
@@ -129,7 +125,7 @@ function WorkspaceTab() {
 
       <Card className="p-6">
         <SectionLabel>Reset workspace</SectionLabel>
-        <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
+        <p className="mt-1.5 max-w-lg text-base leading-relaxed text-ink-dim">
           Replace everything with the original sample dataset. Your owner
           account and client passwords are kept — export a backup first if you
           might want today&apos;s data back.
@@ -155,131 +151,86 @@ function WorkspaceTab() {
 }
 
 function AccountCard() {
-  const { owner } = useAccounts();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [current, setCurrent] = useState("");
+  const { mode } = useCrm();
+  const session = useSession();
+  const [displayName, setDisplayName] = useState(session.profile?.name ?? "");
+  const [nameSaved, setNameSaved] = useState(false);
   const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  const copyCode = async () => {
-    if (!recoveryCode) return;
-    try {
-      await navigator.clipboard.writeText(recoveryCode);
-      setCopied(true);
-    } catch {
-      window.prompt("Recovery code:", recoveryCode);
-    }
-  };
-
-  // Workspaces onboarded before accounts existed: offer to add the lock.
-  if (!owner) {
+  if (mode === "demo") {
     return (
       <Card className="p-6">
         <SectionLabel>Account &amp; security</SectionLabel>
-        {recoveryCode ? (
-          <>
-            <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
-              Account created — the CRM asks for your password from now on.
-              Save this recovery code somewhere safe; it&apos;s shown once and
-              it&apos;s the only way back in if you forget the password.
-            </p>
-            <button
-              onClick={copyCode}
-              className="mt-4 flex w-full max-w-md items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent-dim/50 px-4 py-3 text-left font-mono text-base tracking-wider transition hover:border-accent/70"
-            >
-              {recoveryCode}
-              {copied ? (
-                <Check className="size-4 shrink-0 text-accent" />
-              ) : (
-                <Copy className="size-4 shrink-0 text-ink-dim" />
-              )}
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
-              This workspace predates owner accounts, so the CRM opens without
-              a password. Create your owner account to lock it on this browser.
-            </p>
-            <div className="mt-4 grid max-w-md gap-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                className={inputCls}
-              />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className={inputCls}
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password (8+ characters)"
-                className={inputCls}
-              />
-            </div>
-            {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
-            <PrimaryButton
-              className="mt-4"
-              onClick={async () => {
-                if (!name.trim() || !email.includes("@")) {
-                  setError("Add your name and a valid email.");
-                  return;
-                }
-                if (password.length < 8) {
-                  setError("Password needs at least 8 characters.");
-                  return;
-                }
-                setError(null);
-                setRecoveryCode(
-                  await createOwner({
-                    name: name.trim(),
-                    email: email.trim(),
-                    password,
-                  }),
-                );
-              }}
-            >
-              <ShieldCheck className="size-4" />
-              Secure this workspace
-            </PrimaryButton>
-          </>
-        )}
+        <p className="mt-1.5 max-w-lg text-base leading-relaxed text-ink-dim">
+          This is the local demo — nothing here is tied to an account. Create
+          a real workspace from the sign-in screen and everything syncs to the
+          cloud with proper authentication.
+        </p>
       </Card>
     );
   }
+
+  const saveName = async () => {
+    const trimmed = displayName.trim();
+    if (!trimmed) return;
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.updateUser({
+      data: { full_name: trimmed },
+    });
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    await session.refresh();
+    setNameSaved(true);
+  };
+
+  const changePassword = async () => {
+    if (next.length < 8) {
+      setError("New password needs at least 8 characters.");
+      return;
+    }
+    if (next !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.updateUser({ password: next });
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setError(null);
+    setDone(true);
+    setNext("");
+    setConfirm("");
+  };
 
   return (
     <Card className="p-6">
       <SectionLabel>Account &amp; security</SectionLabel>
       <p className="mt-1.5 text-sm text-ink-dim">
-        Signed in as <span className="text-ink">{owner.name}</span> ·{" "}
-        {owner.email}. The lock keeps passers-by out of the CRM on this
-        browser; your recovery code (or latest backup file) resets a forgotten
-        password.
+        Signed in as <span className="text-ink">{session.profile?.name}</span>{" "}
+        · {session.profile?.email}. Forgot-password emails go there.
       </p>
-      <div className="mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
+      <div className="mt-4 flex max-w-md gap-2">
         <input
-          type="password"
-          value={current}
+          value={displayName}
           onChange={(e) => {
-            setCurrent(e.target.value);
-            setError(null);
-            setDone(false);
+            setDisplayName(e.target.value);
+            setNameSaved(false);
           }}
-          placeholder="Current password"
+          placeholder="Display name"
           className={inputCls}
         />
+        <PrimaryButton onClick={saveName}>
+          {nameSaved ? <Check className="size-4" /> : "Save"}
+        </PrimaryButton>
+      </div>
+      <div className="mt-3 flex max-w-md flex-col gap-2 sm:flex-row">
         <input
           type="password"
           value={next}
@@ -291,22 +242,18 @@ function AccountCard() {
           placeholder="New password"
           className={inputCls}
         />
-        <PrimaryButton
-          onClick={async () => {
-            if (next.length < 8) {
-              setError("New password needs at least 8 characters.");
-              return;
-            }
-            if (await changeOwnerPassword(current, next)) {
-              setError(null);
-              setDone(true);
-              setCurrent("");
-              setNext("");
-            } else {
-              setError("Current password isn't right.");
-            }
+        <input
+          type="password"
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            setError(null);
+            setDone(false);
           }}
-        >
+          placeholder="Confirm password"
+          className={inputCls}
+        />
+        <PrimaryButton onClick={changePassword}>
           {done ? <Check className="size-4" /> : <KeyRound className="size-4" />}
           {done ? "Changed" : "Change"}
         </PrimaryButton>
@@ -317,19 +264,22 @@ function AccountCard() {
 }
 
 function BackupCard() {
-  const { state, actions } = useCrm();
+  const { state, actions, mode } = useCrm();
   const fileRef = useRef<HTMLInputElement>(null);
   const [lastBackup, setLastBackup] = useState(() => getLastBackupAt());
   const [pending, setPending] = useState<WorkspaceBackup | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [imported, setImported] = useState(false);
-  const [exportedCode, setExportedCode] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  // The one-time migration path: data from the old localStorage-only app.
+  const [legacy, setLegacy] = useState(() =>
+    typeof window === "undefined" ? null : readLegacyLocalWorkspace(),
+  );
 
-  const exportNow = async () => {
-    const backup = await buildBackup(state);
+  const exportNow = () => {
+    const backup = buildBackup(state);
     downloadBackup(backup);
     setLastBackup(backup.exportedAt);
-    setExportedCode(backup.recoveryCode);
   };
 
   const pickFile = async (file: File | undefined) => {
@@ -344,15 +294,46 @@ function BackupCard() {
     setPending(backup);
   };
 
-  const confirmImport = () => {
-    if (!pending) return;
-    actions.importState(pending.state);
-    restoreAccounts(pending);
-    setPending(null);
-    setImported(true);
+  const confirmImport = async () => {
+    if (!pending || importing) return;
+    setImporting(true);
+    try {
+      await actions.importState(pending.state);
+      setPending(null);
+      setImported(true);
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Import failed — try again.",
+      );
+    } finally {
+      setImporting(false);
+    }
   };
 
-  const counts = (s: WorkspaceBackup["state"]) =>
+  const importLegacy = async () => {
+    if (!legacy || importing) return;
+    if (
+      !window.confirm(
+        "Add the workspace saved in this browser to your cloud workspace? Existing records stay; the local data is copied in.",
+      )
+    ) {
+      return;
+    }
+    setImporting(true);
+    try {
+      await actions.importState(legacy);
+      setLegacy(null);
+      setImported(true);
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Import failed — try again.",
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const counts = (s: Partial<CrmState>) =>
     [
       `${s.companies?.length ?? 0} companies`,
       `${s.deals?.length ?? 0} deals`,
@@ -363,11 +344,10 @@ function BackupCard() {
   return (
     <Card className="p-6">
       <SectionLabel>Data &amp; backup</SectionLabel>
-      <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
-        Your workspace lives in this browser&apos;s storage. Download a JSON
-        backup to keep it safe or move it to another machine — each export
-        includes a fresh recovery code, so your latest backup file can always
-        unlock the workspace.
+      <p className="mt-1.5 max-w-lg text-base leading-relaxed text-ink-dim">
+        {mode === "db"
+          ? "Your workspace lives in the cloud database. Download a JSON backup any time; importing a backup adds its records to this workspace."
+          : "This demo lives in the browser. Download a JSON backup to keep the data or import it into a real workspace later."}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <PrimaryButton onClick={exportNow}>
@@ -395,12 +375,23 @@ function BackupCard() {
         </span>
       </div>
 
-      {exportedCode && (
-        <p className="mt-3 max-w-lg rounded-xl border border-accent/30 bg-accent-dim/40 px-4 py-3 text-xs leading-relaxed text-ink-dim">
-          Backup saved. It contains your new recovery code{" "}
-          <span className="font-mono text-ink">{exportedCode}</span> — previous
-          codes no longer work.
-        </p>
+      {mode === "db" && legacy && (
+        <div className="mt-4 max-w-lg rounded-xl border border-accent/30 bg-accent-dim/30 p-4">
+          <p className="text-sm font-medium">
+            Found a workspace saved in this browser
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-dim">
+            “{legacy.workspace?.name ?? "My workspace"}” — {counts(legacy)}.
+            From before this app moved to the cloud. Import it once and it
+            follows you to every device.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <PrimaryButton onClick={importLegacy} disabled={importing}>
+              {importing ? "Importing…" : "Import into this workspace"}
+            </PrimaryButton>
+            <GhostButton onClick={() => setLegacy(null)}>Dismiss</GhostButton>
+          </div>
+        </div>
       )}
 
       {importError && (
@@ -408,25 +399,23 @@ function BackupCard() {
       )}
       {imported && (
         <p className="mt-3 text-sm text-accent">
-          Workspace restored from backup.
+          Workspace data imported.
         </p>
       )}
 
       {pending && (
         <div className="mt-4 max-w-lg rounded-xl border border-edge bg-surface-2/60 p-4">
           <p className="text-sm font-medium">
-            Replace this workspace with “{pending.workspaceName}”?
+            Import “{pending.workspaceName}” into this workspace?
           </p>
           <p className="mt-1.5 text-xs leading-relaxed text-ink-dim">
             Backup from {new Date(pending.exportedAt).toLocaleString()} —{" "}
-            {counts(pending.state)}. Your current workspace (
-            {counts({ ...state, ui: undefined } as WorkspaceBackup["state"])})
-            and its sign-in credentials will be overwritten. This can&apos;t be
-            undone.
+            {counts(pending.state)}. Its records (and its pipeline stages) are
+            added to your current workspace ({counts(state)}).
           </p>
           <div className="mt-3 flex gap-2">
-            <PrimaryButton onClick={confirmImport}>
-              Replace workspace
+            <PrimaryButton onClick={confirmImport} disabled={importing}>
+              {importing ? "Importing…" : "Import backup"}
             </PrimaryButton>
             <GhostButton onClick={() => setPending(null)}>Cancel</GhostButton>
           </div>
@@ -596,7 +585,7 @@ function AutomationsTab() {
   return (
     <div className="space-y-6">
       <Card className="divide-y divide-edge">
-        <p className="p-4 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="p-4 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Active rules — these run on deals, contracts, tickets and invoices
         </p>
         {state.rules.map((rule) => (
@@ -730,42 +719,67 @@ function AutomationsTab() {
 }
 
 function TeamTab() {
-  const { state, actions } = useCrm();
+  const { state, actions, mode } = useCrm();
+  const session = useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("Member");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const invite = () => {
-    if (!name.trim() || !email.trim()) return;
-    actions.addTeamMember(name.trim(), email.trim(), role);
-    setName("");
-    setEmail("");
+  const invite = async () => {
+    if (!name.trim() || !email.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    setSent(null);
+    const result = await actions.addTeamMember(name.trim(), email.trim(), role);
+    setBusy(false);
+    if (result.ok) {
+      setSent(
+        mode === "db"
+          ? `Invite sent to ${email.trim()} — they'll set a password and land in this workspace.`
+          : `${name.trim()} added.`,
+      );
+      setName("");
+      setEmail("");
+    } else {
+      setError(result.error ?? "Invite failed.");
+    }
   };
 
   return (
     <div className="space-y-6">
       <Card className="divide-y divide-edge">
-        {state.team.map((m, i) => (
-          <div key={m.id} className="flex items-center gap-3.5 p-4">
-            <Avatar name={m.name} hue={m.hue} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{m.name}</p>
-              <p className="truncate text-xs text-ink-faint">{m.email}</p>
+        {state.team.map((m) => {
+          const isSelf = m.id === session.profile?.id;
+          return (
+            <div key={m.id} className="flex items-center gap-3.5 p-4">
+              <Avatar name={m.name} hue={m.hue} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {m.name}
+                  {isSelf && (
+                    <span className="ml-2 text-xs text-ink-faint">(you)</span>
+                  )}
+                </p>
+                <p className="truncate text-xs text-ink-faint">{m.email}</p>
+              </div>
+              <span className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim">
+                {m.role}
+              </span>
+              {m.role !== "Owner" && !isSelf && (
+                <button
+                  onClick={() => actions.removeTeamMember(m.id)}
+                  aria-label={`Remove ${m.name}`}
+                  className="rounded-lg p-1.5 text-ink-faint transition hover:text-danger"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              )}
             </div>
-            <span className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim">
-              {m.role}
-            </span>
-            {i > 0 && (
-              <button
-                onClick={() => actions.removeTeamMember(m.id)}
-                aria-label={`Remove ${m.name}`}
-                className="rounded-lg p-1.5 text-ink-faint transition hover:text-danger"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </Card>
 
       <Card className="p-6">
@@ -799,12 +813,16 @@ function TeamTab() {
             </select>
           </Field>
         </div>
-        <PrimaryButton className="mt-4" onClick={invite}>
+        <PrimaryButton className="mt-4" onClick={invite} disabled={busy}>
           <Plus className="size-4" />
-          Send invite
+          {busy ? "Sending…" : "Send invite"}
         </PrimaryButton>
+        {sent && <p className="mt-2 text-xs text-accent">{sent}</p>}
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         <p className="mt-2 text-xs text-ink-faint">
-          Demo mode — invites add the member instantly, no email is sent.
+          {mode === "db"
+            ? "Invites email a sign-up link; the account gets this workspace with the role you pick."
+            : "Demo mode — invites add the member instantly, no email is sent."}
         </p>
       </Card>
     </div>
@@ -868,7 +886,7 @@ function BillingTab() {
       </div>
 
       <Card className="divide-y divide-edge">
-        <p className="p-4 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="p-4 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Invoice history
         </p>
         {invoices.map((inv) => (
@@ -899,7 +917,7 @@ export default function SettingsView() {
         subtitle="Workspace, pipeline, team and billing."
       />
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-edge bg-surface-2/40 p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-edge bg-surface-2/65 p-1">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (

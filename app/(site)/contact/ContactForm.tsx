@@ -49,12 +49,12 @@ export default function ContactForm() {
 
   if (sent) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-edge bg-surface-2/40 p-10 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-edge bg-surface-2/65 p-10 text-center">
         <span className="flex size-14 items-center justify-center rounded-full bg-accent-dim">
           <Check className="size-7 text-accent" />
         </span>
         <p className="text-lg font-medium">Request handed to your mail app</p>
-        <p className="max-w-md text-[15px] leading-relaxed text-ink-dim">
+        <p className="max-w-md text-base leading-relaxed text-ink-dim">
           Hit send there and we&apos;ll get back to you within one business
           day. If nothing opened, email us directly at{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-accent">

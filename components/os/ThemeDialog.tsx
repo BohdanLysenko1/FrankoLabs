@@ -127,7 +127,7 @@ export default function ThemeDialog() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className={`w-full max-w-xl overflow-hidden border border-edge bg-surface-2/95 shadow-2xl shadow-black/60 backdrop-blur-xl ${
+            className={`w-full max-w-xl overflow-hidden border border-edge bg-surface-2 shadow-2xl shadow-black/60 backdrop-blur-xl ${
               retro ? "xp-window" : "rounded-xl"
             }`}
             onClick={(e) => e.stopPropagation()}
@@ -156,7 +156,7 @@ export default function ThemeDialog() {
                 <button
                   aria-label="Close"
                   onClick={() => setOpen(false)}
-                  className="rounded-md p-1 text-ink-faint transition hover:bg-surface-3 hover:text-ink"
+                  className="rounded-md p-1 text-ink-dim transition hover:bg-surface-3 hover:text-ink"
                 >
                   <X className="size-4" />
                 </button>
@@ -164,7 +164,7 @@ export default function ThemeDialog() {
             )}
 
             <div className="p-5">
-              <p className="text-sm text-ink-dim">
+              <p className="text-[15px] leading-relaxed text-ink-dim">
                 {firstRun
                   ? "Welcome to Franko OS — pick how it should look. You can change this anytime from the menu bar."
                   : "Pick a theme. Saved on this device."}
@@ -180,7 +180,7 @@ export default function ThemeDialog() {
                       className={`group rounded-lg border p-2.5 text-left transition ${
                         current
                           ? "border-accent/60 bg-accent-dim"
-                          : "border-edge bg-surface/60 hover:border-edge-strong hover:bg-surface-3"
+                          : "border-edge bg-surface/90 hover:border-edge-strong hover:bg-surface-3"
                       }`}
                     >
                       <Preview id={o.id} />
@@ -188,7 +188,7 @@ export default function ThemeDialog() {
                         {o.name}
                         {current && <Check className="size-3.5 text-accent" strokeWidth={3} />}
                       </span>
-                      <span className="mt-0.5 block text-xs leading-relaxed text-ink-faint">
+                      <span className="mt-0.5 block text-xs leading-relaxed text-ink-dim">
                         {o.blurb}
                       </span>
                     </button>

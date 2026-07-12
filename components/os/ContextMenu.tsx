@@ -69,7 +69,7 @@ const browserItems: Item[] = [
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-widest text-ink-faint">
+    <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
       {children}
     </p>
   );
@@ -118,7 +118,7 @@ export default function ContextMenu({ state, onClose, openPalette }: ContextMenu
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.12 }}
-          className="os-menu fixed z-[80] min-w-56 rounded-xl border border-edge bg-surface-2/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl"
+          className="os-menu fixed z-[80] min-w-56 rounded-xl border border-edge bg-surface-2 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl"
           style={{
             left: Math.min(state.x, typeof window !== "undefined" ? window.innerWidth - 240 : state.x),
             top: Math.min(state.y, typeof window !== "undefined" ? window.innerHeight - 420 : state.y),

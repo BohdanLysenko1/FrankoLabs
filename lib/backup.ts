@@ -1,21 +1,17 @@
 "use client";
 
 import type { CrmState } from "@/lib/crm/types";
-import {
-  exportAccounts,
-  mintRecoveryCode,
-  replaceAccounts,
-  type Accounts,
-} from "@/lib/accounts";
 
 /**
- * Workspace backup: one JSON file holding the CRM state and the credentials
- * store. Exporting mints a fresh owner recovery code and embeds it, so the
- * latest backup file can always unlock the workspace — older codes are spent.
+ * Workspace backup: one JSON file holding the CRM state. Since v2 credentials
+ * live in Supabase Auth, so backups carry data only — restoring imports the
+ * records into whatever workspace you're signed into. v1 files (which bundled
+ * the old localStorage credential store) still import; their accounts blob is
+ * ignored.
  */
 
 const KIND = "franko-workspace-backup";
-const VERSION = 1;
+const VERSION = 2;
 const LAST_BACKUP_KEY = "franko-last-backup-at";
 
 export type WorkspaceBackup = {
@@ -23,22 +19,16 @@ export type WorkspaceBackup = {
   version: number;
   exportedAt: number;
   workspaceName: string;
-  /** Plaintext recovery code minted at export time (owner accounts only). */
-  recoveryCode: string | null;
   state: Omit<CrmState, "ui">;
-  accounts: Accounts;
 };
 
-export async function buildBackup(state: CrmState): Promise<WorkspaceBackup> {
-  const recoveryCode = await mintRecoveryCode();
+export function buildBackup(state: CrmState): WorkspaceBackup {
   return {
     kind: KIND,
     version: VERSION,
     exportedAt: Date.now(),
     workspaceName: state.workspace.name,
-    recoveryCode,
     state: { ...state, ui: undefined } as Omit<CrmState, "ui">,
-    accounts: exportAccounts(),
   };
 }
 
@@ -79,11 +69,6 @@ export function parseBackup(text: string): WorkspaceBackup | null {
   }
 }
 
-/** Restore credentials from a backup; the caller imports the CRM state. */
-export function restoreAccounts(backup: WorkspaceBackup) {
-  replaceAccounts(backup.accounts ?? { owner: null, clients: {} });
-}
-
 export function getLastBackupAt(): number | null {
   try {
     const raw = localStorage.getItem(LAST_BACKUP_KEY);
@@ -98,5 +83,25 @@ function setLastBackupAt(at: number) {
     localStorage.setItem(LAST_BACKUP_KEY, String(at));
   } catch {
     // Storage unavailable — the timestamp is only a convenience.
+  }
+}
+
+/**
+ * The previous app generation kept the whole workspace in this localStorage
+ * key — the one-time import tool reads it after first sign-in.
+ */
+export function readLegacyLocalWorkspace(): Partial<CrmState> | null {
+  try {
+    const raw = localStorage.getItem("franko-crm-state-v2");
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<CrmState>;
+    if (!saved || !Array.isArray(saved.companies) || !Array.isArray(saved.deals)) {
+      return null;
+    }
+    // The untouched sample workspace isn't worth importing.
+    if (!saved.onboarded) return null;
+    return saved;
+  } catch {
+    return null;
   }
 }

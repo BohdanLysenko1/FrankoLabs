@@ -30,10 +30,10 @@ export default function PortalGate({ tool, children }: PortalGateProps) {
   if (!entitlementsFor(state, company).includes(tool)) {
     return (
       <div className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-        <Lock className="size-8 text-ink-faint" strokeWidth={1.5} />
+        <Lock className="size-8 text-ink-dim" strokeWidth={1.5} />
         <div>
           <p className="text-[15px] font-medium">Not part of your plan yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-ink-dim">
+          <p className="mx-auto mt-1 max-w-sm text-base leading-relaxed text-ink-dim">
             This tool isn&apos;t included in {company.name}&apos;s current
             services. Want it added? The team is one message away.
           </p>

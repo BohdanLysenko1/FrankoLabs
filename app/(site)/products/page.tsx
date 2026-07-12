@@ -35,7 +35,7 @@ export default function ProductsPage() {
                 early access
               </span>
             </div>
-            <p className="mt-1.5 max-w-md text-[15px] leading-relaxed text-ink-dim">
+            <p className="mt-1.5 max-w-md text-base leading-relaxed text-ink-dim">
               The operating system for running a business. Currently powering
               Franko Labs itself — launching as a standalone platform.
             </p>
@@ -49,7 +49,7 @@ export default function ProductsPage() {
           </Link>
         </div>
 
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Inside Franko OS
         </p>
         <p className="mt-2 max-w-2xl text-base leading-relaxed text-ink-dim">
@@ -65,7 +65,7 @@ export default function ProductsPage() {
               <Link
                 key={m.slug}
                 href={`/products/${m.slug}`}
-                className="group flex items-center gap-3 rounded-xl border border-edge bg-surface-2/40 p-4 transition hover:border-edge-strong hover:bg-surface-2/70"
+                className="group flex items-center gap-3 rounded-xl border border-edge bg-surface-2/65 p-4 transition hover:border-edge-strong hover:bg-surface-2/70"
               >
                 <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />
                 <span className="truncate text-[15px] font-medium">
@@ -80,8 +80,8 @@ export default function ProductsPage() {
           })}
         </div>
 
-        <div className="mt-10 rounded-2xl border border-edge bg-surface-2/40 p-6">
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <div className="mt-10 rounded-2xl border border-edge bg-surface-2/65 p-6">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Why it exists
           </p>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">

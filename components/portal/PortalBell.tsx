@@ -153,7 +153,7 @@ export default function PortalBell({ company }: { company: Company }) {
       </button>
 
       {open && (
-        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
+        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2 shadow-2xl shadow-black/60 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-edge px-4 py-3">
             <p className="text-sm font-medium">What&apos;s new</p>
             {unread.length > 0 && (
@@ -180,13 +180,13 @@ export default function PortalBell({ company }: { company: Company }) {
                   }`}
                 >
                   <Icon
-                    className={`mt-0.5 size-4 shrink-0 ${isNew ? "text-accent" : "text-ink-faint"}`}
+                    className={`mt-0.5 size-4 shrink-0 ${isNew ? "text-accent" : "text-ink-dim"}`}
                     strokeWidth={1.75}
                   />
                   <span className="min-w-0">
                     <span className="flex items-baseline gap-2">
-                      <span className="text-xs font-medium">{n.title}</span>
-                      <span className="text-[10px] text-ink-faint">
+                      <span className="text-sm font-medium">{n.title}</span>
+                      <span className="text-[11px] text-ink-dim">
                         {relTime(n.at, now)}
                       </span>
                     </span>
@@ -201,7 +201,7 @@ export default function PortalBell({ company }: { company: Company }) {
               );
             })}
             {items.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-ink-faint">
+              <p className="px-4 py-8 text-center text-sm text-ink-dim">
                 All caught up.
               </p>
             )}

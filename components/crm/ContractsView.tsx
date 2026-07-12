@@ -146,31 +146,33 @@ export default function ContractsView() {
         />
       ) : (
         <>
-      <div>
-        <SectionLabel>Out for signature</SectionLabel>
-        <Card className="mt-3 divide-y divide-edge">
-          {pending.map((c) => (
-            <ContractRow key={c.id} contract={c} />
-          ))}
-          {pending.length === 0 && (
-            <p className="p-5 text-sm text-ink-faint">
-              Nothing out for signature.
-            </p>
-          )}
-        </Card>
-      </div>
+          <div>
+            <SectionLabel>Out for signature</SectionLabel>
+            <Card className="mt-3 divide-y divide-edge">
+              {pending.map((c) => (
+                <ContractRow key={c.id} contract={c} />
+              ))}
+              {pending.length === 0 && (
+                <p className="p-5 text-sm text-ink-faint">
+                  Nothing out for signature.
+                </p>
+              )}
+            </Card>
+          </div>
 
-      <div>
-        <SectionLabel>Signed</SectionLabel>
-        <Card className="mt-3 divide-y divide-edge">
-          {signed.map((c) => (
-            <ContractRow key={c.id} contract={c} />
-          ))}
-          {signed.length === 0 && (
-            <p className="p-5 text-sm text-ink-faint">No signed contracts yet.</p>
-          )}
-        </Card>
-      </div>
+          <div>
+            <SectionLabel>Signed</SectionLabel>
+            <Card className="mt-3 divide-y divide-edge">
+              {signed.map((c) => (
+                <ContractRow key={c.id} contract={c} />
+              ))}
+              {signed.length === 0 && (
+                <p className="p-5 text-sm text-ink-faint">
+                  No signed contracts yet.
+                </p>
+              )}
+            </Card>
+          </div>
         </>
       )}
 

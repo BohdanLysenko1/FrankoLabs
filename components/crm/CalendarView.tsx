@@ -386,7 +386,7 @@ export default function CalendarView() {
         title="Calendar"
         subtitle="Calls, meetings and deadlines — linked to your deals. Drag an event to reschedule it."
       >
-        <div className="flex items-center gap-1 rounded-xl border border-edge bg-surface-2/40 p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-edge bg-surface-2/65 p-1">
           {(["month", "week"] as const).map((v) => (
             <button
               key={v}
@@ -491,12 +491,12 @@ export default function CalendarView() {
                   </span>
                   {events.slice(0, 3).map(chip)}
                   {events.length > 3 && (
-                    <p className="px-1 text-[10px] text-ink-faint">
+                    <p className="px-1 text-[11px] text-ink-dim">
                       +{events.length - 3} more
                     </p>
                   )}
                   {taskCount > 0 && (
-                    <p className="flex items-center gap-1 px-1 text-[10px] text-ink-faint">
+                    <p className="flex items-center gap-1 px-1 text-[11px] text-ink-dim">
                       <ListChecks className="size-3" />
                       {taskCount} task{taskCount > 1 ? "s" : ""} due
                     </p>
@@ -551,7 +551,7 @@ export default function CalendarView() {
                             ? "bg-accent-dim/50"
                             : isSameDay(day, today)
                               ? "bg-surface-2/30 hover:bg-surface-2/60"
-                              : "hover:bg-surface-2/40"
+                              : "hover:bg-surface-2/65"
                         }`}
                       >
                         {slotEvents.map(chip)}
@@ -568,7 +568,7 @@ export default function CalendarView() {
       {/* Upcoming agenda */}
       <div>
         <SectionLabel>Coming up</SectionLabel>
-        <div className="mt-2 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+        <div className="mt-2 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
           {upcoming.map((e) => {
             const contact = e.contactId ? contactById.get(e.contactId) : null;
             const s = kindStyle[e.kind];

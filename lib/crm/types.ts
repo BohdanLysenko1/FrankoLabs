@@ -6,6 +6,8 @@
  * API calls against these same types when a real database lands.
  */
 
+import type { Proposal } from "@/lib/proposals";
+
 export type StageKind = "open" | "won" | "lost";
 
 export type Stage = {
@@ -253,8 +255,138 @@ export type TeamMember = {
 export type PlanId = "solo" | "studio" | "scale";
 
 export type Workspace = {
+  /** Database id — empty string in the local demo store. */
+  id: string;
   name: string;
   plan: PlanId;
+};
+
+/* ------------------------------------------------------------------ */
+/* Managed sites (website / hosting / domains / analytics tools)       */
+/* ------------------------------------------------------------------ */
+
+export type SitePage = {
+  path: string;
+  title: string;
+  views30d: number;
+  updatedDaysAgo: number;
+};
+
+export type Deploy = {
+  label: string;
+  daysAgo: number;
+  kind: "content" | "feature" | "fix";
+};
+
+export type Incident = {
+  title: string;
+  daysAgo: number;
+  durationMin: number;
+};
+
+export type DnsRecord = {
+  type: "A" | "CNAME" | "MX" | "TXT";
+  name: string;
+  value: string;
+  note: string;
+};
+
+export type TrafficSource = { name: string; share: number };
+
+export type SiteHealth = {
+  status: "online" | "maintenance";
+  uptime90d: string;
+  sslDaysLeft: number;
+  plan: string;
+  region: string;
+  lastDeployDaysAgo: number;
+  visits30d: number;
+  /** Lighthouse-style scores, 0–100. */
+  perf: { performance: number; accessibility: number; seo: number };
+  pages: SitePage[];
+  deploys: Deploy[];
+  /** Daily snapshots — days ago, newest first. */
+  backups: { daysAgo: number; size: string }[];
+  incidents: Incident[];
+  usage: {
+    bandwidthGb: number;
+    bandwidthLimitGb: number;
+    storageGb: number;
+    storageLimitGb: number;
+  };
+  registrar: string;
+  domainRenewsInDays: number;
+  dns: DnsRecord[];
+  /** Traffic mix shown in the analytics tool. Empty = computed default. */
+  trafficSources: TrafficSource[];
+};
+
+/** One day of site traffic (analytics tool). */
+export type AnalyticsDay = { at: number; visits: number; leads: number };
+
+/* ------------------------------------------------------------------ */
+/* Vault                                                               */
+/* ------------------------------------------------------------------ */
+
+export type VaultCategory = "hosting" | "domain" | "marketing" | "analytics";
+
+/**
+ * Vault item metadata. The secret itself never sits in state — it is
+ * encrypted at rest and fetched on demand via actions.revealVaultSecret.
+ */
+export type VaultEntry = {
+  id: string;
+  /** Null = internal item; set = shared with that client company's portal. */
+  companyId: string | null;
+  name: string;
+  category: VaultCategory;
+  username: string;
+  url: string;
+  hasSecret: boolean;
+  lastAccessAt: number | null;
+};
+
+/* ------------------------------------------------------------------ */
+/* Knowledge base                                                      */
+/* ------------------------------------------------------------------ */
+
+export type DocSection = { heading?: string; text: string };
+
+export type DocCategory =
+  | "Getting started"
+  | "Website"
+  | "Billing"
+  | "Playbooks"
+  | "Runbooks";
+
+export const DOC_CATEGORIES: DocCategory[] = [
+  "Getting started",
+  "Website",
+  "Billing",
+  "Playbooks",
+  "Runbooks",
+];
+
+export type DocArticle = {
+  id: string;
+  slug: string;
+  title: string;
+  category: DocCategory;
+  summary: string;
+  minutes: number;
+  updatedAt: number;
+  /** Published to the client portal's Guides tool. */
+  clientVisible: boolean;
+  sections: DocSection[];
+  position: number;
+};
+
+/** A client-side auth user with portal access to a company. */
+export type ClientUser = {
+  userId: string;
+  companyId: string;
+  name: string;
+  email: string;
 };
 
 export type CrmState = {
@@ -278,6 +410,15 @@ export type CrmState = {
   entitlements: Record<string, string[]>;
   rules: AutomationRule[];
   team: TeamMember[];
+  /** Managed-site health per client company id. */
+  sites: Record<string, SiteHealth>;
+  /** 30 daily traffic points per client company id, oldest first. */
+  analytics: Record<string, AnalyticsDay[]>;
+  vault: VaultEntry[];
+  docs: DocArticle[];
+  proposals: Proposal[];
+  /** Auth users with portal access, per company. */
+  clientUsers: ClientUser[];
   /** Notification ids the user has dismissed. */
   readNotifIds: string[];
   /** Set after the onboarding wizard finishes. Persisted with the rest. */

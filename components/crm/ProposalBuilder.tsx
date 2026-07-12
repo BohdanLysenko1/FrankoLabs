@@ -19,10 +19,8 @@ import {
   SERVICE_CATALOG,
   emptyProposal,
   lineTotal,
-  loadProposals,
   proposalNumber,
   proposalTotals,
-  saveProposals,
   serviceById,
   type Proposal,
   type ProposalLine,
@@ -210,28 +208,25 @@ export default function ProposalBuilder({
   onSent: () => void;
 }) {
   const { state, actions } = useCrm();
-  const [proposals, setProposals] = useState<Proposal[]>(loadProposals);
+  // Drafts live in the store (synced to the database when signed in).
+  const proposals = state.proposals;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  useEffect(() => {
-    saveProposals(proposals);
-  }, [proposals]);
+  const [sentId, setSentId] = useState<string | null>(null);
 
   // Consume a palette "New proposal" request once the builder is on screen.
   const req = state.ui.openRequest;
   useEffect(() => {
     if (req?.kind !== "new-proposal") return;
-    const start = () => {
+    // Deferred a tick — creating the draft mid-effect cascades renders.
+    const timer = window.setTimeout(() => {
       const draft = emptyProposal();
-      setProposals((prev) => [draft, ...prev]);
+      actions.saveProposal(draft);
       setEditingId(draft.id);
-      setSent(false);
-    };
-    start();
-    onRequestConsumed();
-    actions.requestOpen(null);
+      onRequestConsumed();
+      actions.requestOpen(null);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [req, actions, onRequestConsumed]);
 
   useEffect(() => {
@@ -246,8 +241,9 @@ export default function ProposalBuilder({
   }, [printing]);
 
   const editing = proposals.find((p) => p.id === editingId) ?? null;
+  const sent = sentId !== null && sentId === editingId;
   const company = editing?.companyId
-    ? state.companies.find((c) => c.id === editing.companyId) ?? null
+    ? (state.companies.find((c) => c.id === editing.companyId) ?? null)
     : null;
   const totals = useMemo(
     () => (editing ? proposalTotals(editing) : null),
@@ -255,20 +251,16 @@ export default function ProposalBuilder({
   );
 
   const update = (patch: Partial<Proposal>) => {
-    if (!editingId) return;
-    setSent(false);
-    setProposals((prev) =>
-      prev.map((p) =>
-        p.id === editingId ? { ...p, ...patch, updatedAt: Date.now() } : p,
-      ),
-    );
+    if (!editing) return;
+    setSentId(null);
+    // saveProposal stamps updatedAt.
+    actions.saveProposal({ ...editing, ...patch });
   };
 
   const startNew = () => {
     const draft = emptyProposal();
-    setProposals((prev) => [draft, ...prev]);
+    actions.saveProposal(draft);
     setEditingId(draft.id);
-    setSent(false);
   };
 
   const addService = (serviceId: string) => {
@@ -309,7 +301,9 @@ export default function ProposalBuilder({
 
   const deleteDraft = () => {
     if (!editingId) return;
-    setProposals((prev) => prev.filter((p) => p.id !== editingId));
+    if (!window.confirm("Delete this proposal draft? This can't be undone."))
+      return;
+    actions.deleteProposal(editingId);
     setEditingId(null);
   };
 
@@ -329,7 +323,7 @@ export default function ProposalBuilder({
       amount: totals.firstInvoice,
       terms: STANDARD_TERMS.slice(0, 3),
     });
-    setSent(true);
+    setSentId(editing.id);
     onSent();
   };
 
@@ -421,18 +415,14 @@ export default function ProposalBuilder({
           </GhostButton>
           <GhostButton
             onClick={() => setPrinting(true)}
-            className={editing.lines.length === 0 ? "pointer-events-none opacity-50" : ""}
+            disabled={editing.lines.length === 0}
           >
             <Printer className="size-4" />
             Export PDF
           </GhostButton>
           <PrimaryButton
             onClick={sendAsContract}
-            className={
-              !editing.companyId || editing.lines.length === 0 || sent
-                ? "pointer-events-none opacity-50"
-                : ""
-            }
+            disabled={!editing.companyId || editing.lines.length === 0 || sent}
           >
             {sent ? <Check className="size-4" /> : <Send className="size-4" />}
             {sent ? "Sent for signature" : "Send as contract"}
@@ -499,7 +489,7 @@ export default function ProposalBuilder({
                     className={`rounded-xl border p-3.5 text-left transition ${
                       selected
                         ? "border-accent/50 bg-accent-dim"
-                        : "border-edge bg-surface-2/40 hover:border-edge-strong"
+                        : "border-edge bg-surface-2/65 hover:border-edge-strong"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">

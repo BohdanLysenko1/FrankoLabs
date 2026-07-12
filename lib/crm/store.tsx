@@ -2,13 +2,16 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
-import { makeSeedState, AGENCY_STAGES, SIMPLE_STAGES } from "./seed";
+import { makeSeedState, makeSeedDocs, AGENCY_STAGES, SIMPLE_STAGES, DEMO_VAULT_SECRETS } from "./seed";
 import {
   uid,
   DAY,
@@ -24,6 +27,7 @@ import {
   type Deal,
   type Deliverable,
   type DeliverableKind,
+  type DocArticle,
   type Invoice,
   type OpenRequest,
   type PlanId,
@@ -33,13 +37,34 @@ import {
   type Ticket,
   type TicketMessage,
   type TicketStatus,
+  type VaultCategory,
+  type VaultEntry,
 } from "./types";
+import type { Proposal } from "@/lib/proposals";
+import { createClient } from "@/lib/supabase/client";
+import { useSession, type Session } from "@/lib/supabase/session";
+import {
+  applyChange,
+  ensureClientInfra,
+  importWorkspaceData,
+  loadWorkspaceState,
+  mapClientUsers,
+  mapTeam,
+  REALTIME_TABLES,
+  type Db,
+} from "./db";
+import { inviteClientUser, inviteTeamMemberUser } from "@/lib/actions/invites";
 
 /**
- * Client-side store persisted to localStorage. State lives in the /crm
- * layout, so it survives navigation and reloads; "Reset demo data" restores
- * the sample set. The action surface mirrors what a real API would expose,
- * so a backend can replace the reducer without touching the views.
+ * The CRM store runs one of two engines behind the same interface:
+ *
+ *  - Demo engine — the original client-side reducer, used when nobody is
+ *    signed in (marketing previews, ?noonboard test sessions). Persists to
+ *    localStorage except in ephemeral sessions.
+ *  - Database engine — Supabase is the source of truth. Actions write through
+ *    (multi-step operations via Postgres RPCs so automations and invoice
+ *    numbering stay atomic), a realtime channel keeps every open client in
+ *    sync, and local dispatches keep the UI optimistic.
  */
 
 const STORAGE_KEY = "franko-crm-state-v2";
@@ -102,7 +127,13 @@ type Action =
   | { type: "mark-notifs-read"; ids: string[] }
   | { type: "set-open-request"; request: OpenRequest | null }
   | { type: "add-team-member"; member: CrmState["team"][number] }
-  | { type: "remove-team-member"; id: string };
+  | { type: "remove-team-member"; id: string }
+  | { type: "save-proposal"; proposal: Proposal }
+  | { type: "delete-proposal"; id: string }
+  | { type: "save-doc"; article: DocArticle }
+  | { type: "delete-doc"; id: string }
+  | { type: "save-vault"; entry: VaultEntry }
+  | { type: "delete-vault"; id: string };
 
 function emptyState(base: CrmState): CrmState {
   return {
@@ -118,6 +149,11 @@ function emptyState(base: CrmState): CrmState {
     tickets: [],
     deliverables: [],
     entitlements: {},
+    sites: {},
+    analytics: {},
+    vault: [],
+    proposals: [],
+    clientUsers: [],
   };
 }
 
@@ -130,7 +166,7 @@ function reducer(state: CrmState, action: Action): CrmState {
       const next = action.withSampleData ? seeded : emptyState(seeded);
       return {
         ...next,
-        stages,
+        stages: action.withSampleData ? seeded.stages : stages,
         workspace: { ...next.workspace, name: action.workspaceName || "My workspace" },
         onboarded: true,
       };
@@ -184,7 +220,13 @@ function reducer(state: CrmState, action: Action): CrmState {
           c.id === action.id ? { ...c, ...action.patch } : c,
         ),
       };
-    case "delete-company":
+    case "delete-company": {
+      const sites = { ...state.sites };
+      delete sites[action.id];
+      const analytics = { ...state.analytics };
+      delete analytics[action.id];
+      const entitlements = { ...state.entitlements };
+      delete entitlements[action.id];
       return {
         ...state,
         companies: state.companies.filter((c) => c.id !== action.id),
@@ -194,7 +236,13 @@ function reducer(state: CrmState, action: Action): CrmState {
         deals: state.deals.map((d) =>
           d.companyId === action.id ? { ...d, companyId: null } : d,
         ),
+        vault: state.vault.filter((v) => v.companyId !== action.id),
+        clientUsers: state.clientUsers.filter((u) => u.companyId !== action.id),
+        sites,
+        analytics,
+        entitlements,
       };
+    }
     case "add-deal":
       return { ...state, deals: [action.deal, ...state.deals] };
     case "update-deal":
@@ -387,6 +435,43 @@ function reducer(state: CrmState, action: Action): CrmState {
       return { ...state, team: [...state.team, action.member] };
     case "remove-team-member":
       return { ...state, team: state.team.filter((m) => m.id !== action.id) };
+    case "save-proposal": {
+      const exists = state.proposals.some((p) => p.id === action.proposal.id);
+      return {
+        ...state,
+        proposals: exists
+          ? state.proposals.map((p) =>
+              p.id === action.proposal.id ? action.proposal : p,
+            )
+          : [action.proposal, ...state.proposals],
+      };
+    }
+    case "delete-proposal":
+      return {
+        ...state,
+        proposals: state.proposals.filter((p) => p.id !== action.id),
+      };
+    case "save-doc": {
+      const exists = state.docs.some((d) => d.id === action.article.id);
+      const docs = exists
+        ? state.docs.map((d) => (d.id === action.article.id ? action.article : d))
+        : [...state.docs, action.article];
+      return { ...state, docs: docs.sort((a, b) => a.position - b.position) };
+    }
+    case "delete-doc":
+      return { ...state, docs: state.docs.filter((d) => d.id !== action.id) };
+    case "save-vault": {
+      const exists = state.vault.some((v) => v.id === action.entry.id);
+      const vault = exists
+        ? state.vault.map((v) => (v.id === action.entry.id ? action.entry : v))
+        : [...state.vault, action.entry];
+      return {
+        ...state,
+        vault: vault.sort((a, b) => a.name.localeCompare(b.name)),
+      };
+    }
+    case "delete-vault":
+      return { ...state, vault: state.vault.filter((v) => v.id !== action.id) };
     default:
       return state;
   }
@@ -411,6 +496,15 @@ function initState(): CrmState {
   return seeded;
 }
 
+/** Continue the visible invoice numbering from the highest number on record. */
+function nextInvoiceNumber(invoices: Invoice[]): string {
+  const top = invoices.reduce((max, i) => {
+    const n = Number(i.number.replace(/\D/g, ""));
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 1041);
+  return `INV-${top + 1}`;
+}
+
 export type LogActivityInput = {
   type: ActivityType;
   summary: string;
@@ -420,7 +514,12 @@ export type LogActivityInput = {
   clientVisible?: boolean;
 };
 
-function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
+export type InviteResult = { ok: boolean; error?: string };
+
+/** In-memory plaintext for demo vault items created this session. */
+const demoSecrets = new Map<string, string>(Object.entries(DEMO_VAULT_SECRETS));
+
+function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
   const logActivity = (input: LogActivityInput) =>
     dispatch({
       type: "log-activity",
@@ -517,20 +616,23 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
   });
 
   return {
-    completeOnboarding: (
+    completeOnboarding: async (
       workspaceName: string,
       template: "agency" | "simple",
       withSampleData: boolean,
-    ) =>
+    ): Promise<void> => {
       dispatch({
         type: "complete-onboarding",
         workspaceName,
         template,
         withSampleData,
-      }),
+      });
+    },
     resetDemo: () => dispatch({ type: "reset-demo" }),
-    importState: (state: Partial<CrmState>) =>
-      dispatch({ type: "import-state", state }),
+    importState: async (state: Partial<CrmState>): Promise<void> => {
+      dispatch({ type: "import-state", state });
+    },
+    refresh: () => {},
     setWorkspaceName: (name: string) =>
       dispatch({ type: "set-workspace-name", name }),
     setPlan: (plan: PlanId) => dispatch({ type: "set-plan", plan }),
@@ -652,14 +754,9 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       dueInDays?: number;
     }) => {
       const now = Date.now();
-      // Continue the visible numbering from the highest number on record.
-      const top = state.invoices.reduce((max, i) => {
-        const n = Number(i.number.replace(/\D/g, ""));
-        return Number.isFinite(n) && n > max ? n : max;
-      }, 1041);
       const invoice: Invoice = {
         id: uid(),
-        number: `INV-${top + 1}`,
+        number: nextInvoiceNumber(state.invoices),
         companyId: input.companyId,
         dealId: input.dealId ?? null,
         label: input.label,
@@ -756,15 +853,11 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         id,
         patch: { status: "signed", signedAt: now, signedBy: signerName },
       });
-      const top = state.invoices.reduce((max, i) => {
-        const n = Number(i.number.replace(/\D/g, ""));
-        return Number.isFinite(n) && n > max ? n : max;
-      }, 1041);
       dispatch({
         type: "add-invoice",
         invoice: {
           id: uid(),
-          number: `INV-${top + 1}`,
+          number: nextInvoiceNumber(state.invoices),
           companyId: contract.companyId,
           dealId: contract.dealId,
           label: `${contract.title} — 50% deposit`,
@@ -971,7 +1064,11 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
     requestOpen: (request: OpenRequest | null) =>
       dispatch({ type: "set-open-request", request }),
 
-    addTeamMember: (name: string, email: string, role: TeamRole) =>
+    addTeamMember: async (
+      name: string,
+      email: string,
+      role: TeamRole,
+    ): Promise<InviteResult> => {
       dispatch({
         type: "add-team-member",
         member: {
@@ -981,23 +1078,114 @@ function buildActions(dispatch: React.Dispatch<Action>, state: CrmState) {
           role,
           hue: Math.floor(Math.random() * 360),
         },
-      }),
+      });
+      return { ok: true };
+    },
     removeTeamMember: (id: string) =>
       dispatch({ type: "remove-team-member", id }),
+
+    inviteClient: async (
+      _companyId?: string,
+      _email?: string,
+      _name?: string,
+    ): Promise<InviteResult> => {
+      void _companyId;
+      void _email;
+      void _name;
+      return {
+        ok: false,
+        error: "Client invites need a signed-in workspace — this is the demo.",
+      };
+    },
+    revokeClientAccess: async (_companyId?: string): Promise<InviteResult> => {
+      void _companyId;
+      return { ok: true };
+    },
+
+    saveProposal: (proposal: Proposal) =>
+      dispatch({
+        type: "save-proposal",
+        proposal: { ...proposal, updatedAt: Date.now() },
+      }),
+    deleteProposal: (id: string) => dispatch({ type: "delete-proposal", id }),
+
+    saveDoc: (input: Omit<DocArticle, "id" | "updatedAt" | "position"> & { id?: string }) => {
+      const existing = input.id
+        ? state.docs.find((d) => d.id === input.id)
+        : undefined;
+      const article: DocArticle = {
+        ...input,
+        id: input.id ?? uid(),
+        updatedAt: Date.now(),
+        position: existing?.position ?? state.docs.length,
+      };
+      dispatch({ type: "save-doc", article });
+      return article;
+    },
+    deleteDoc: (id: string) => dispatch({ type: "delete-doc", id }),
+
+    saveVaultItem: (input: {
+      id?: string;
+      companyId: string | null;
+      name: string;
+      category: VaultCategory;
+      username: string;
+      url: string;
+      secret?: string;
+    }) => {
+      const existing = input.id
+        ? state.vault.find((v) => v.id === input.id)
+        : undefined;
+      const entry: VaultEntry = {
+        id: input.id ?? uid(),
+        companyId: input.companyId,
+        name: input.name,
+        category: input.category,
+        username: input.username,
+        url: input.url,
+        hasSecret: Boolean(input.secret) || (existing?.hasSecret ?? false),
+        lastAccessAt: existing?.lastAccessAt ?? null,
+      };
+      if (input.secret) demoSecrets.set(entry.id, input.secret);
+      dispatch({ type: "save-vault", entry });
+      return entry;
+    },
+    deleteVaultItem: (id: string) => dispatch({ type: "delete-vault", id }),
+    revealVaultSecret: async (id: string): Promise<string> =>
+      demoSecrets.get(id) ?? "",
   };
 }
 
+export type CrmActions = ReturnType<typeof buildDemoActions>;
+
 type CrmContextValue = {
   state: CrmState;
-  actions: ReturnType<typeof buildActions>;
+  actions: CrmActions;
+  /** True while the database engine loads the workspace. */
+  loading: boolean;
+  /** Which engine is running — "demo" (local) or "db" (Supabase). */
+  mode: "demo" | "db";
 };
 
 const CrmContext = createContext<CrmContextValue | null>(null);
 
-export function CrmProvider({ children }: { children: ReactNode }) {
+/* ------------------------------------------------------------------ */
+/* Demo engine                                                         */
+/* ------------------------------------------------------------------ */
+
+function DemoCrmProvider({
+  ready,
+  children,
+}: {
+  ready: boolean;
+  children: ReactNode;
+}) {
   const [state, dispatch] = useReducer(reducer, undefined, initState);
-  const actions = useMemo(() => buildActions(dispatch, state), [state]);
-  const value = useMemo(() => ({ state, actions }), [state, actions]);
+  const actions = useMemo(() => buildDemoActions(dispatch, state), [state]);
+  const value = useMemo(
+    () => ({ state, actions, loading: !ready, mode: "demo" as const }),
+    [state, actions, ready],
+  );
 
   // Persist everything except transient UI state. Ephemeral (?noonboard)
   // sessions never write, so tests can't clobber real data.
@@ -1015,6 +1203,1014 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Database engine                                                     */
+/* ------------------------------------------------------------------ */
+
+function dbBaseState(): CrmState {
+  return { ...emptyState(makeSeedState()), onboarded: false, docs: [] };
+}
+
+function DbCrmProvider({
+  session,
+  children,
+}: {
+  session: Session;
+  children: ReactNode;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [state, setState] = useState<CrmState>(dbBaseState);
+  const [loading, setLoading] = useState(true);
+  // Action handlers need the latest state without rebuilding the actions
+  // object every render — they read it through this getter at event time.
+  const stateRef = useRef<CrmState>(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const getState = useCallback(() => stateRef.current, []);
+
+  const workspaceId =
+    session.membership?.workspaceId ?? session.clientAccess?.workspaceId ?? null;
+  const userId = session.user?.id ?? null;
+
+  const refresh = useCallback(async () => {
+    if (!workspaceId || !userId) {
+      setState(dbBaseState());
+      setLoading(false);
+      return;
+    }
+    try {
+      const loaded = await loadWorkspaceState(supabase, workspaceId, userId);
+      setState(loaded ?? dbBaseState());
+    } catch (err) {
+      console.error("Workspace load failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, workspaceId, userId]);
+
+  useEffect(() => {
+    // Deferred a tick — refresh() may set state synchronously (no workspace).
+    const timer = window.setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(timer);
+  }, [refresh]);
+
+  // Membership tables need a profile join — refetch those lists (debounced)
+  // instead of mapping raw realtime rows.
+  const teamRefreshTimer = useRef<number | null>(null);
+  const refetchTeamLists = useCallback(() => {
+    if (teamRefreshTimer.current) window.clearTimeout(teamRefreshTimer.current);
+    teamRefreshTimer.current = window.setTimeout(async () => {
+      if (!workspaceId) return;
+      const [membersRes, companyMembersRes] = await Promise.all([
+        supabase.from("workspace_members").select("*").eq("workspace_id", workspaceId),
+        supabase.from("company_members").select("*").eq("workspace_id", workspaceId),
+      ]);
+      const [team, clientUsers] = await Promise.all([
+        mapTeam(supabase, membersRes.data ?? []),
+        mapClientUsers(supabase, companyMembersRes.data ?? []),
+      ]);
+      setState((prev) => ({ ...prev, team, clientUsers }));
+    }, 250);
+  }, [supabase, workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const channel = supabase.channel(`workspace-${workspaceId}`);
+    for (const table of REALTIME_TABLES) {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table,
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
+        (payload) => {
+          setState((prev) => {
+            const result = applyChange(
+              prev,
+              table,
+              payload.eventType as "INSERT" | "UPDATE" | "DELETE",
+              payload.new as Record<string, unknown>,
+              payload.old as Record<string, unknown>,
+            );
+            if (result.needsTeamRefresh) refetchTeamLists();
+            return result.state;
+          });
+        },
+      );
+    }
+    channel.subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, workspaceId, refetchTeamLists]);
+
+  const actions = useMemo(
+    () =>
+      // getState reads the ref inside event handlers only, never in render.
+      // eslint-disable-next-line react-hooks/refs
+      buildDbActions({
+        db: supabase,
+        setState,
+        getState,
+        refresh,
+        session,
+        workspaceId,
+        userId,
+      }),
+    [supabase, getState, refresh, session, workspaceId, userId],
+  );
+
+  const value = useMemo(
+    () => ({ state, actions, loading, mode: "db" as const }),
+    [state, actions, loading],
+  );
+
+  return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
+}
+
+type DbActionCtx = {
+  db: Db;
+  setState: React.Dispatch<React.SetStateAction<CrmState>>;
+  getState: () => CrmState;
+  refresh: () => Promise<void>;
+  session: Session;
+  workspaceId: string | null;
+  userId: string | null;
+};
+
+function buildDbActions(ctx: DbActionCtx): CrmActions {
+  const { db, setState, getState, refresh, session, userId } = ctx;
+  const ws = () => ctx.workspaceId as string;
+
+  /** Optimistic local update via the demo reducer's action vocabulary. */
+  const local = (action: Action) => setState((prev) => reducer(prev, action));
+
+  /** Run a write; on failure log and reconcile from the server. */
+  const write = (op: () => PromiseLike<{ error: { message: string } | null }>) => {
+    void (async () => {
+      try {
+        const { error } = await op();
+        if (error) throw new Error(error.message);
+      } catch (err) {
+        console.error("CRM write failed:", err);
+        void refresh();
+      }
+    })();
+  };
+
+  const iso = (at: number) => new Date(at).toISOString();
+
+  const logActivity = (input: LogActivityInput) => {
+    const activity: Activity = {
+      id: uid(),
+      type: input.type,
+      summary: input.summary,
+      at: Date.now(),
+      dealId: input.dealId ?? null,
+      contactId: input.contactId ?? null,
+      companyId: input.companyId ?? null,
+      clientVisible: input.clientVisible ?? false,
+    };
+    local({ type: "log-activity", activity });
+    write(() =>
+      db.from("activities").insert({
+        id: activity.id,
+        workspace_id: ws(),
+        type: activity.type,
+        summary: activity.summary,
+        at: iso(activity.at),
+        deal_id: activity.dealId,
+        contact_id: activity.contactId,
+        company_id: activity.companyId,
+        client_visible: activity.clientVisible,
+      }),
+    );
+  };
+
+  /** Companies flipping to client get default site + analytics rows. */
+  const ensureInfra = (company: Company) => {
+    if (!company.isClient) return;
+    const hasSite = Boolean(getState().sites[company.id]);
+    void ensureClientInfra(db, ws(), company, hasSite).catch((err) =>
+      console.error("ensureClientInfra:", err),
+    );
+  };
+
+  return {
+    completeOnboarding: async (workspaceName, template, withSampleData) => {
+      const { data: workspaceId, error } = await db.rpc("create_workspace", {
+        p_name: workspaceName,
+        p_template: template,
+      });
+      if (error || !workspaceId) {
+        console.error("create_workspace failed:", error?.message);
+        return;
+      }
+      try {
+        if (withSampleData) {
+          const seed = makeSeedState();
+          await importWorkspaceData(db, workspaceId, seed, {
+            replaceStages: true,
+            demoVaultSecrets: true,
+          });
+        } else {
+          await importWorkspaceData(db, workspaceId, { docs: makeSeedDocs() });
+        }
+      } catch (err) {
+        console.error("Workspace seeding failed:", err);
+      }
+      await session.refresh();
+    },
+
+    resetDemo: () => {
+      void (async () => {
+        try {
+          const workspaceId = ws();
+          // Order matters only for readability — cascades do the real work.
+          for (const table of [
+            "tickets",
+            "deliverables",
+            "contracts",
+            "invoices",
+            "deals",
+            "events",
+            "tasks",
+            "activities",
+            "contacts",
+            "companies",
+            "vault_items",
+            "proposals",
+            "automation_rules",
+            "doc_articles",
+            "stages",
+          ] as const) {
+            const { error } = await db
+              .from(table)
+              .delete()
+              .eq("workspace_id", workspaceId);
+            if (error) throw new Error(`${table}: ${error.message}`);
+          }
+          await importWorkspaceData(db, workspaceId, makeSeedState(), {
+            demoVaultSecrets: true,
+          });
+          await refresh();
+        } catch (err) {
+          console.error("Restore sample data failed:", err);
+          void refresh();
+        }
+      })();
+    },
+
+    importState: async (data) => {
+      // Imported stages are added (not swapped in) — replacing would
+      // cascade-delete every existing deal.
+      await importWorkspaceData(db, ws(), data);
+      await refresh();
+    },
+
+    refresh: () => void refresh(),
+
+    setWorkspaceName: (name) => {
+      local({ type: "set-workspace-name", name });
+      write(() => db.from("workspaces").update({ name }).eq("id", ws()));
+    },
+    setPlan: (plan) => {
+      local({ type: "set-plan", plan });
+      write(() => db.from("workspaces").update({ plan }).eq("id", ws()));
+    },
+
+    addContact: (input) => {
+      const contact: Contact = {
+        ...input,
+        id: uid(),
+        createdAt: Date.now(),
+        hue: Math.floor(Math.random() * 360),
+      };
+      local({ type: "add-contact", contact });
+      write(() =>
+        db.from("contacts").insert({
+          id: contact.id,
+          workspace_id: ws(),
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          role: contact.role,
+          company_id: contact.companyId,
+          hue: contact.hue,
+          tags: contact.tags,
+          notes: contact.notes,
+        }),
+      );
+      return contact;
+    },
+    updateContact: (id, patch) => {
+      local({ type: "update-contact", id, patch });
+      write(() =>
+        db
+          .from("contacts")
+          .update({
+            ...(patch.name !== undefined && { name: patch.name }),
+            ...(patch.email !== undefined && { email: patch.email }),
+            ...(patch.phone !== undefined && { phone: patch.phone }),
+            ...(patch.role !== undefined && { role: patch.role }),
+            ...(patch.companyId !== undefined && { company_id: patch.companyId }),
+            ...(patch.tags !== undefined && { tags: patch.tags }),
+            ...(patch.notes !== undefined && { notes: patch.notes }),
+          })
+          .eq("id", id),
+      );
+    },
+    deleteContact: (id) => {
+      local({ type: "delete-contact", id });
+      write(() => db.from("contacts").delete().eq("id", id));
+    },
+
+    addCompany: (input) => {
+      const company: Company = { ...input, id: uid() };
+      local({ type: "add-company", company });
+      void (async () => {
+        const { error } = await db.from("companies").insert({
+          id: company.id,
+          workspace_id: ws(),
+          name: company.name,
+          domain: company.domain,
+          industry: company.industry,
+          location: company.location,
+          is_client: company.isClient,
+          notes: company.notes,
+        });
+        if (error) {
+          console.error("addCompany:", error.message);
+          void refresh();
+          return;
+        }
+        ensureInfra(company);
+      })();
+      return company;
+    },
+    updateCompany: (id, patch) => {
+      local({ type: "update-company", id, patch });
+      void (async () => {
+        const { error } = await db
+          .from("companies")
+          .update({
+            ...(patch.name !== undefined && { name: patch.name }),
+            ...(patch.domain !== undefined && { domain: patch.domain }),
+            ...(patch.industry !== undefined && { industry: patch.industry }),
+            ...(patch.location !== undefined && { location: patch.location }),
+            ...(patch.isClient !== undefined && { is_client: patch.isClient }),
+            ...(patch.notes !== undefined && { notes: patch.notes }),
+          })
+          .eq("id", id);
+        if (error) {
+          console.error("updateCompany:", error.message);
+          void refresh();
+          return;
+        }
+        const company = getState().companies.find((c) => c.id === id);
+        if (company) ensureInfra(company);
+      })();
+    },
+    deleteCompany: (id) => {
+      local({ type: "delete-company", id });
+      write(() => db.from("companies").delete().eq("id", id));
+    },
+
+    addDeal: (input) => {
+      const now = Date.now();
+      const deal: Deal = {
+        ...input,
+        id: uid(),
+        createdAt: now,
+        stageChangedAt: now,
+        closedAt: null,
+      };
+      local({ type: "add-deal", deal });
+      write(() =>
+        db.rpc("create_deal", {
+          p_id: deal.id,
+          p_workspace: ws(),
+          p_name: deal.name,
+          p_company: deal.companyId as string,
+          p_contact: deal.contactId as string,
+          p_stage: deal.stageId,
+          p_value: deal.value,
+          p_source: deal.source,
+        }),
+      );
+      return deal;
+    },
+    updateDeal: (id, patch) => {
+      local({ type: "update-deal", id, patch });
+      write(() =>
+        db
+          .from("deals")
+          .update({
+            ...(patch.name !== undefined && { name: patch.name }),
+            ...(patch.companyId !== undefined && { company_id: patch.companyId }),
+            ...(patch.contactId !== undefined && { contact_id: patch.contactId }),
+            ...(patch.value !== undefined && { value: patch.value }),
+            ...(patch.source !== undefined && { source: patch.source }),
+          })
+          .eq("id", id),
+      );
+    },
+    moveDeal: (id, stageId) => {
+      const deal = getState().deals.find((d) => d.id === id);
+      const stage = getState().stages.find((s) => s.id === stageId);
+      if (!deal || !stage || deal.stageId === stageId) return;
+      local({ type: "move-deal", id, stageId, at: Date.now() });
+      write(() => db.rpc("move_deal", { p_deal: id, p_stage: stageId }));
+    },
+    deleteDeal: (id) => {
+      local({ type: "delete-deal", id });
+      write(() => db.from("deals").delete().eq("id", id));
+    },
+
+    addTask: (title, dueAt, link = {}) => {
+      const task: Task = {
+        id: uid(),
+        title,
+        dueAt,
+        done: false,
+        dealId: link.dealId ?? null,
+        contactId: link.contactId ?? null,
+        createdAt: Date.now(),
+      };
+      local({ type: "add-task", task });
+      write(() =>
+        db.from("tasks").insert({
+          id: task.id,
+          workspace_id: ws(),
+          title: task.title,
+          due_at: iso(task.dueAt),
+          done: false,
+          deal_id: task.dealId,
+          contact_id: task.contactId,
+        }),
+      );
+    },
+    toggleTask: (id) => {
+      const task = getState().tasks.find((t) => t.id === id);
+      if (!task) return;
+      local({ type: "toggle-task", id });
+      write(() => db.from("tasks").update({ done: !task.done }).eq("id", id));
+    },
+    deleteTask: (id) => {
+      local({ type: "delete-task", id });
+      write(() => db.from("tasks").delete().eq("id", id));
+    },
+
+    addEvent: (input) => {
+      const event: CalEvent = { ...input, id: uid(), done: false };
+      local({ type: "add-event", event });
+      write(() =>
+        db.from("events").insert({
+          id: event.id,
+          workspace_id: ws(),
+          title: event.title,
+          kind: event.kind,
+          start_at: iso(event.startAt),
+          duration_min: event.durationMin,
+          deal_id: event.dealId,
+          contact_id: event.contactId,
+          notes: event.notes,
+          done: false,
+        }),
+      );
+      return event;
+    },
+    updateEvent: (id, patch) => {
+      local({ type: "update-event", id, patch });
+      write(() =>
+        db
+          .from("events")
+          .update({
+            ...(patch.title !== undefined && { title: patch.title }),
+            ...(patch.kind !== undefined && { kind: patch.kind }),
+            ...(patch.startAt !== undefined && { start_at: iso(patch.startAt) }),
+            ...(patch.durationMin !== undefined && { duration_min: patch.durationMin }),
+            ...(patch.dealId !== undefined && { deal_id: patch.dealId }),
+            ...(patch.contactId !== undefined && { contact_id: patch.contactId }),
+            ...(patch.notes !== undefined && { notes: patch.notes }),
+            ...(patch.done !== undefined && { done: patch.done }),
+          })
+          .eq("id", id),
+      );
+    },
+    deleteEvent: (id) => {
+      local({ type: "delete-event", id });
+      write(() => db.from("events").delete().eq("id", id));
+    },
+    completeEvent: (id) => {
+      const event = getState().events.find((e) => e.id === id);
+      if (!event || event.done) return;
+      local({ type: "update-event", id, patch: { done: true } });
+      write(() => db.from("events").update({ done: true }).eq("id", id));
+      if (event.kind === "call" || event.kind === "meeting") {
+        const deal = event.dealId
+          ? getState().deals.find((d) => d.id === event.dealId)
+          : null;
+        logActivity({
+          type: event.kind === "call" ? "call" : "meeting",
+          summary: `${event.title} — completed.`,
+          dealId: event.dealId,
+          contactId: event.contactId,
+          companyId: deal?.companyId ?? null,
+        });
+      }
+    },
+
+    logActivity,
+
+    addInvoice: (input) => {
+      const now = Date.now();
+      const invoice: Invoice = {
+        id: uid(),
+        number: nextInvoiceNumber(getState().invoices),
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        label: input.label,
+        amount: input.amount,
+        issuedAt: now,
+        dueAt: now + (input.dueInDays ?? 14) * DAY,
+        paidAt: null,
+        status: "due",
+      };
+      local({ type: "add-invoice", invoice });
+      write(() =>
+        db.rpc("create_invoice", {
+          p_id: invoice.id,
+          p_company: invoice.companyId,
+          p_deal: invoice.dealId as string,
+          p_label: invoice.label,
+          p_amount: invoice.amount,
+          p_due_days: input.dueInDays ?? 14,
+        }),
+      );
+      return invoice;
+    },
+    payInvoice: (id) => {
+      const invoice = getState().invoices.find((i) => i.id === id);
+      if (!invoice || invoice.status !== "due") return;
+      local({ type: "pay-invoice", id, at: Date.now() });
+      write(() => db.rpc("pay_invoice", { p_invoice: id }));
+    },
+
+    sendContract: (input) => {
+      const contract: Contract = {
+        id: uid(),
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        title: input.title,
+        summary: input.summary,
+        amount: input.amount,
+        terms: input.terms ?? [
+          "50% deposit invoiced on signature, balance on delivery.",
+          "Scope changes are quoted before work starts.",
+        ],
+        status: "sent",
+        sentAt: Date.now(),
+        viewedAt: null,
+        signedAt: null,
+        signedBy: null,
+      };
+      local({ type: "add-contract", contract });
+      write(() =>
+        db.rpc("create_contract", {
+          p_id: contract.id,
+          p_company: contract.companyId,
+          p_deal: contract.dealId as string,
+          p_title: contract.title,
+          p_summary: contract.summary,
+          p_amount: contract.amount,
+          p_terms: contract.terms,
+        }),
+      );
+      return contract;
+    },
+    markContractViewed: (id) => {
+      const contract = getState().contracts.find((c) => c.id === id);
+      if (!contract || contract.status !== "sent") return;
+      local({
+        type: "update-contract",
+        id,
+        patch: { status: "viewed", viewedAt: Date.now() },
+      });
+      write(() => db.rpc("mark_contract_viewed", { p_contract: id }));
+    },
+    signContract: (id, signerName) => {
+      const contract = getState().contracts.find((c) => c.id === id);
+      if (!contract || contract.status === "signed") return;
+      local({
+        type: "update-contract",
+        id,
+        patch: { status: "signed", signedAt: Date.now(), signedBy: signerName },
+      });
+      write(() => db.rpc("sign_contract", { p_contract: id, p_signer: signerName }));
+    },
+
+    createTicket: (input) => {
+      const now = Date.now();
+      const ticket: Ticket = {
+        id: uid(),
+        companyId: input.companyId,
+        contactId: input.contactId ?? null,
+        topic: input.topic,
+        subject: input.subject,
+        status: "open",
+        createdAt: now,
+        updatedAt: now,
+        messages: [
+          {
+            id: uid(),
+            from: "client",
+            author: input.author,
+            text: input.details?.trim() || input.subject,
+            at: now,
+          },
+        ],
+      };
+      local({ type: "add-ticket", ticket });
+      write(() =>
+        db.rpc("create_ticket", {
+          p_id: ticket.id,
+          p_company: ticket.companyId,
+          p_contact: ticket.contactId as string,
+          p_author: input.author,
+          p_topic: ticket.topic,
+          p_subject: ticket.subject,
+          p_details: input.details ?? "",
+        }),
+      );
+      return ticket;
+    },
+    replyTicket: (id, from, author, text) => {
+      const ticket = getState().tickets.find((t) => t.id === id);
+      if (!ticket || !text.trim()) return;
+      local({
+        type: "ticket-message",
+        ticketId: id,
+        message: { id: uid(), from, author, text: text.trim(), at: Date.now() },
+        status:
+          from === "agency" && ticket.status === "open"
+            ? "in_progress"
+            : undefined,
+      });
+      write(() =>
+        db.rpc("reply_ticket", { p_ticket: id, p_author: author, p_body: text }),
+      );
+    },
+    setTicketStatus: (id, status) => {
+      local({ type: "set-ticket-status", id, status });
+      write(() =>
+        db
+          .from("tickets")
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq("id", id),
+      );
+    },
+
+    setEntitlements: (companyId, toolIds) => {
+      local({ type: "set-entitlements", companyId, toolIds });
+      write(() =>
+        db.from("entitlements").upsert(
+          { company_id: companyId, workspace_id: ws(), tool_ids: toolIds },
+          { onConflict: "company_id" },
+        ),
+      );
+    },
+
+    addDeliverable: (input) => {
+      const deliverable: Deliverable = {
+        id: uid(),
+        companyId: input.companyId,
+        dealId: input.dealId ?? null,
+        title: input.title,
+        kind: input.kind,
+        url: input.url,
+        note: input.note?.trim() ?? "",
+        status: "in_review",
+        postedAt: Date.now(),
+        respondedAt: null,
+        clientComment: "",
+      };
+      local({ type: "add-deliverable", deliverable });
+      write(() =>
+        db.from("deliverables").insert({
+          id: deliverable.id,
+          workspace_id: ws(),
+          company_id: deliverable.companyId,
+          deal_id: deliverable.dealId,
+          title: deliverable.title,
+          kind: deliverable.kind,
+          url: deliverable.url,
+          note: deliverable.note,
+        }),
+      );
+      logActivity({
+        type: "system",
+        summary: `Ready for your review: ${deliverable.title}.`,
+        dealId: deliverable.dealId,
+        companyId: deliverable.companyId,
+        clientVisible: true,
+      });
+      return deliverable;
+    },
+    respondDeliverable: (id, status, comment) => {
+      const deliverable = getState().deliverables.find((d) => d.id === id);
+      if (!deliverable || deliverable.status !== "in_review") return;
+      local({
+        type: "respond-deliverable",
+        id,
+        status,
+        comment: comment.trim(),
+        at: Date.now(),
+      });
+      write(() =>
+        db.rpc("respond_deliverable", {
+          p_id: id,
+          p_status: status,
+          p_comment: comment,
+        }),
+      );
+    },
+
+    renameStage: (id, name) => {
+      local({ type: "rename-stage", id, name });
+      write(() => db.from("stages").update({ name }).eq("id", id));
+    },
+    addStage: (name) => {
+      const open = getState().stages.filter((s) => s.kind === "open");
+      const position =
+        open.reduce(
+          (max, s) =>
+            Math.max(max, (s as Stage & { position?: number }).position ?? 0),
+          0,
+        ) + 1;
+      const stage: Stage & { position: number } = {
+        id: uid(),
+        name,
+        kind: "open",
+        position,
+      };
+      local({ type: "add-stage", stage, beforeClosed: true });
+      write(() =>
+        db.from("stages").insert({
+          id: stage.id,
+          workspace_id: ws(),
+          name,
+          kind: "open",
+          position,
+        }),
+      );
+    },
+    removeStage: (id) => {
+      const open = getState().stages.filter((s) => s.kind === "open");
+      if (open.length <= 1) return;
+      const fallback = open.find((s) => s.id !== id);
+      if (!fallback) return;
+      local({ type: "remove-stage", id });
+      void (async () => {
+        try {
+          const moved = await db
+            .from("deals")
+            .update({ stage_id: fallback.id })
+            .eq("stage_id", id);
+          if (moved.error) throw new Error(moved.error.message);
+          const del = await db.from("stages").delete().eq("id", id);
+          if (del.error) throw new Error(del.error.message);
+        } catch (err) {
+          console.error("removeStage:", err);
+          void refresh();
+        }
+      })();
+    },
+    moveStage: (id, dir) => {
+      const stages = getState().stages as (Stage & { position?: number })[];
+      const open = stages.filter((s) => s.kind === "open");
+      const idx = open.findIndex((s) => s.id === id);
+      const to = idx + dir;
+      if (idx === -1 || to < 0 || to >= open.length) return;
+      const a = open[idx];
+      const b = open[to];
+      local({ type: "move-stage", id, dir });
+      void (async () => {
+        try {
+          // Swap normalized positions (index-based, in case rows share values).
+          const posA = to + 1;
+          const posB = idx + 1;
+          const r1 = await db.from("stages").update({ position: posA }).eq("id", a.id);
+          if (r1.error) throw new Error(r1.error.message);
+          const r2 = await db.from("stages").update({ position: posB }).eq("id", b.id);
+          if (r2.error) throw new Error(r2.error.message);
+        } catch (err) {
+          console.error("moveStage:", err);
+          void refresh();
+        }
+      })();
+    },
+
+    addRule: (rule) => {
+      const withId: AutomationRule = { ...rule, id: uid() };
+      local({ type: "add-rule", rule: withId });
+      write(() =>
+        db.from("automation_rules").insert({
+          id: withId.id,
+          workspace_id: ws(),
+          name: withId.name,
+          enabled: withId.enabled,
+          trigger: withId.trigger,
+          action: withId.action,
+        }),
+      );
+    },
+    toggleRule: (id) => {
+      const rule = getState().rules.find((r) => r.id === id);
+      if (!rule) return;
+      local({ type: "toggle-rule", id });
+      write(() =>
+        db.from("automation_rules").update({ enabled: !rule.enabled }).eq("id", id),
+      );
+    },
+    deleteRule: (id) => {
+      local({ type: "delete-rule", id });
+      write(() => db.from("automation_rules").delete().eq("id", id));
+    },
+
+    markNotifsRead: (ids) => {
+      if (ids.length === 0 || !userId) return;
+      local({ type: "mark-notifs-read", ids });
+      write(() =>
+        db.from("read_notifications").upsert(
+          ids.map((notifId) => ({
+            user_id: userId,
+            workspace_id: ws(),
+            notif_id: notifId,
+          })),
+          { onConflict: "user_id,workspace_id,notif_id", ignoreDuplicates: true },
+        ),
+      );
+    },
+    requestOpen: (request) => local({ type: "set-open-request", request }),
+
+    addTeamMember: async (name, email, role) => {
+      const result = await inviteTeamMemberUser({
+        workspaceId: ws(),
+        name,
+        email,
+        role,
+      });
+      if (!result.ok) return result;
+      return { ok: true };
+    },
+    removeTeamMember: (id) => {
+      local({ type: "remove-team-member", id });
+      write(() =>
+        db
+          .from("workspace_members")
+          .delete()
+          .eq("workspace_id", ws())
+          .eq("user_id", id),
+      );
+    },
+
+    inviteClient: async (companyId?: string, email?: string, name?: string) => {
+      if (!companyId || !email) {
+        return { ok: false, error: "Pick a company and an email first." };
+      }
+      return inviteClientUser({ workspaceId: ws(), companyId, email, name });
+    },
+    revokeClientAccess: async (companyId?: string) => {
+      if (!companyId) return { ok: false, error: "No company given." };
+      const { error } = await db
+        .from("company_members")
+        .delete()
+        .eq("company_id", companyId);
+      if (error) return { ok: false, error: error.message };
+      setState((prev) => ({
+        ...prev,
+        clientUsers: prev.clientUsers.filter((u) => u.companyId !== companyId),
+      }));
+      return { ok: true };
+    },
+
+    saveProposal: (input) => {
+      const proposal = { ...input, updatedAt: Date.now() };
+      local({ type: "save-proposal", proposal });
+      write(() =>
+        db.from("proposals").upsert({
+          id: proposal.id,
+          workspace_id: ws(),
+          title: proposal.title,
+          company_id: proposal.companyId,
+          prepared_for: proposal.preparedFor,
+          notes: proposal.notes,
+          lines: proposal.lines,
+          global_discount_pct: proposal.globalDiscountPct,
+          created_at: iso(proposal.createdAt),
+          updated_at: iso(proposal.updatedAt),
+        }),
+      );
+    },
+    deleteProposal: (id) => {
+      local({ type: "delete-proposal", id });
+      write(() => db.from("proposals").delete().eq("id", id));
+    },
+
+    saveDoc: (input) => {
+      const existing = input.id
+        ? getState().docs.find((d) => d.id === input.id)
+        : undefined;
+      const article: DocArticle = {
+        ...input,
+        id: input.id ?? uid(),
+        updatedAt: Date.now(),
+        position: existing?.position ?? getState().docs.length,
+      };
+      local({ type: "save-doc", article });
+      write(() =>
+        db.from("doc_articles").upsert({
+          id: article.id,
+          workspace_id: ws(),
+          slug: article.slug,
+          title: article.title,
+          category: article.category,
+          summary: article.summary,
+          minutes: article.minutes,
+          client_visible: article.clientVisible,
+          sections: article.sections,
+          position: article.position,
+          updated_at: iso(article.updatedAt),
+        }),
+      );
+      return article;
+    },
+    deleteDoc: (id) => {
+      local({ type: "delete-doc", id });
+      write(() => db.from("doc_articles").delete().eq("id", id));
+    },
+
+    saveVaultItem: (input) => {
+      const existing = input.id
+        ? getState().vault.find((v) => v.id === input.id)
+        : undefined;
+      const entry: VaultEntry = {
+        id: input.id ?? uid(),
+        companyId: input.companyId,
+        name: input.name,
+        category: input.category,
+        username: input.username,
+        url: input.url,
+        hasSecret: Boolean(input.secret) || (existing?.hasSecret ?? false),
+        lastAccessAt: existing?.lastAccessAt ?? null,
+      };
+      local({ type: "save-vault", entry });
+      write(() =>
+        db.rpc("save_vault_item", {
+          p_id: (input.id ?? null) as unknown as string,
+          p_workspace: ws(),
+          p_company: entry.companyId as string,
+          p_name: entry.name,
+          p_category: entry.category,
+          p_username: entry.username,
+          p_url: entry.url,
+          p_secret: (input.secret ?? null) as unknown as string,
+        }),
+      );
+      return entry;
+    },
+    deleteVaultItem: (id) => {
+      local({ type: "delete-vault", id });
+      write(() => db.from("vault_items").delete().eq("id", id));
+    },
+    revealVaultSecret: async (id) => {
+      const { data, error } = await db.rpc("reveal_vault_secret", { p_id: id });
+      if (error) {
+        console.error("revealVaultSecret:", error.message);
+        return "";
+      }
+      return data ?? "";
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Provider selection                                                  */
+/* ------------------------------------------------------------------ */
+
+export function CrmProvider({ children }: { children: ReactNode }) {
+  const session = useSession();
+  const useDb = session.ready && !session.demo && session.user !== null;
+  if (useDb) {
+    return <DbCrmProvider session={session}>{children}</DbCrmProvider>;
+  }
+  return <DemoCrmProvider ready={session.ready}>{children}</DemoCrmProvider>;
 }
 
 export function useCrm(): CrmContextValue {

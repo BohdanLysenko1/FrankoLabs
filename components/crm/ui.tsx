@@ -43,7 +43,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-edge bg-surface-2/40 ${className}`}
+      className={`rounded-2xl border border-edge bg-surface-2/65 ${className}`}
     >
       {children}
     </div>
@@ -52,7 +52,7 @@ export function Card({
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+    <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
       {children}
     </p>
   );
@@ -72,7 +72,7 @@ export function PageHeader({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {subtitle && (
-          <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-dim">
+          <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
             {subtitle}
           </p>
         )}
@@ -86,18 +86,21 @@ export function PrimaryButton({
   children,
   onClick,
   type = "button",
+  disabled = false,
   className = "",
 }: {
   children: ReactNode;
   onClick?: () => void;
   type?: "button" | "submit";
+  disabled?: boolean;
   className?: string;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-black transition hover:brightness-110 ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-black transition hover:brightness-110 disabled:pointer-events-none disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
@@ -108,18 +111,21 @@ export function GhostButton({
   children,
   onClick,
   type = "button",
+  disabled = false,
   className = "",
 }: {
   children: ReactNode;
   onClick?: () => void;
   type?: "button" | "submit";
+  disabled?: boolean;
   className?: string;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-xl border border-edge bg-surface-2/60 px-4 py-2 text-sm font-medium text-ink-dim transition hover:border-edge-strong hover:text-ink ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-xl border border-edge bg-surface-2/80 px-4 py-2 text-sm font-medium text-ink-dim transition hover:border-edge-strong hover:text-ink disabled:pointer-events-none disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
@@ -135,7 +141,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-faint">
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-dim">
         {label}
       </span>
       {children}
@@ -144,7 +150,7 @@ export function Field({
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-edge bg-surface-2/60 px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/50 focus:bg-surface-2";
+  "w-full rounded-xl border border-edge bg-surface-2/80 px-3.5 py-2.5 text-[15px] text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/50 focus:bg-surface-2";
 
 export function Drawer({
   open,
@@ -249,7 +255,7 @@ export function EmptyState({
         {icon}
       </div>
       <p className="mt-4 text-base font-medium">{title}</p>
-      <p className="mt-1 max-w-xs text-sm text-ink-dim">{hint}</p>
+      <p className="mt-1 max-w-xs text-base leading-relaxed text-ink-dim">{hint}</p>
       {children && <div className="mt-5">{children}</div>}
     </div>
   );

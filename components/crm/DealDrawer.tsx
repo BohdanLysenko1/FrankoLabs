@@ -66,7 +66,7 @@ function DeliverablesSection({ deal }: { deal: Deal }) {
         {deliverables.map((d) => (
           <div
             key={d.id}
-            className="rounded-lg border border-edge bg-surface-2/40 px-3 py-2.5"
+            className="rounded-lg border border-edge bg-surface-2/65 px-3 py-2.5"
           >
             <div className="flex items-center gap-2.5 text-sm">
               {d.status === "approved" ? (
@@ -355,7 +355,7 @@ export default function DealDrawer({
             {events.map((e) => (
               <div
                 key={e.id}
-                className="flex items-center gap-2.5 rounded-lg border border-edge bg-surface-2/40 px-3 py-2.5 text-sm"
+                className="flex items-center gap-2.5 rounded-lg border border-edge bg-surface-2/65 px-3 py-2.5 text-sm"
               >
                 <CalendarDays className="size-4 shrink-0 text-ink-faint" />
                 <span className="min-w-0 flex-1 truncate">{e.title}</span>
@@ -379,7 +379,7 @@ export default function DealDrawer({
           {tasks.map((t) => (
             <label
               key={t.id}
-              className="flex cursor-pointer items-center gap-3 rounded-lg border border-edge bg-surface-2/40 px-3 py-2.5 text-sm"
+              className="flex cursor-pointer items-center gap-3 rounded-lg border border-edge bg-surface-2/65 px-3 py-2.5 text-sm"
             >
               <input
                 type="checkbox"

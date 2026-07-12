@@ -93,7 +93,7 @@ export default function ChangelogPage() {
             <h2 className="text-2xl font-semibold tracking-tight">
               Changelog
             </h2>
-            <p className="mt-0.5 text-[15px] text-ink-dim">
+            <p className="mt-0.5 text-base text-ink-dim">
               What&apos;s new in Franko OS and on this site.
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function ChangelogPage() {
                 {r.changes.map((c) => (
                   <li
                     key={c}
-                    className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-dim"
+                    className="flex items-start gap-2.5 text-base leading-relaxed text-ink-dim"
                   >
                     <span className="mt-2.5 size-1 shrink-0 rounded-full bg-ink-faint" />
                     {c}

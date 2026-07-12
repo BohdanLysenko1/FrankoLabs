@@ -22,13 +22,16 @@ import {
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
 import {
+  daysAgo,
   fmtDate,
   fmtMoney,
+  relTime,
   type Company,
   type Contract,
+  type DocArticle,
+  type VaultEntry,
 } from "@/lib/crm/types";
 import { contractsFor, primaryContactFor, vaultFor } from "@/lib/portal/portal";
-import { clientGuides, type DocArticle } from "@/lib/docs";
 import { answer, suggestionsFor } from "@/lib/assistant";
 import { playSound } from "@/lib/sound";
 import { ToolHeader } from "./tools";
@@ -89,7 +92,7 @@ function ContractCard({
         />
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-medium">{contract.title}</p>
-          <p className="mt-0.5 text-xs text-ink-faint">
+          <p className="mt-0.5 text-xs text-ink-dim">
             {fmtMoney(contract.amount)} · sent {fmtDate(contract.sentAt)}
           </p>
         </div>
@@ -112,7 +115,7 @@ function ContractCard({
 
       {open && (
         <div className="space-y-4 border-t border-edge p-5">
-          <p className="text-sm leading-relaxed text-ink-dim">
+          <p className="text-base leading-relaxed text-ink-dim">
             {contract.summary}
           </p>
           <ul className="space-y-2">
@@ -152,9 +155,9 @@ function ContractCard({
           ) : (
             <form
               onSubmit={sign}
-              className="rounded-xl border border-edge bg-surface/60 p-4"
+              className="rounded-xl border border-edge bg-surface/90 p-4"
             >
-              <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+              <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
                 Sign electronically
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -201,7 +204,7 @@ export function ContractsTool({ company }: { company: Company }) {
 
       {pending.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Waiting on you
           </p>
           <div className="mt-3 space-y-3">
@@ -217,7 +220,7 @@ export function ContractsTool({ company }: { company: Company }) {
       )}
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           On file
         </p>
         <div className="mt-3 space-y-3">
@@ -244,6 +247,8 @@ export function ContractsTool({ company }: { company: Company }) {
 /* ------------------------------------------------------------------ */
 
 export function GuidesTool({ company }: { company: Company }) {
+  const { state } = useCrm();
+  const guides = state.docs.filter((d) => d.clientVisible);
   const [active, setActive] = useState<DocArticle | null>(null);
 
   if (active) {
@@ -263,8 +268,8 @@ export function GuidesTool({ company }: { company: Company }) {
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">
             {active.title}
           </h1>
-          <p className="mt-1 text-xs text-ink-faint">
-            {active.minutes} min read · updated {active.updatedDaysAgo}d ago
+          <p className="mt-1 text-xs text-ink-dim">
+            {active.minutes} min read · updated {daysAgo(active.updatedAt)}d ago
           </p>
         </div>
         <div className="space-y-5">
@@ -273,7 +278,7 @@ export function GuidesTool({ company }: { company: Company }) {
               {s.heading && (
                 <h2 className="mb-2 text-[15px] font-medium">{s.heading}</h2>
               )}
-              <p className="text-sm leading-relaxed text-ink-dim">{s.text}</p>
+              <p className="text-base leading-relaxed text-ink-dim">{s.text}</p>
             </div>
           ))}
         </div>
@@ -288,7 +293,7 @@ export function GuidesTool({ company }: { company: Company }) {
         subtitle={`Answers written for ${company.name} — how your site, billing and support work.`}
       />
       <div className="space-y-3">
-        {clientGuides.map((g) => (
+        {guides.map((g) => (
           <button
             key={g.slug}
             onClick={() => {
@@ -300,10 +305,10 @@ export function GuidesTool({ company }: { company: Company }) {
             <BookOpen className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={1.75} />
             <div className="min-w-0">
               <p className="text-[15px] font-medium">{g.title}</p>
-              <p className="mt-1 text-sm leading-relaxed text-ink-dim">
+              <p className="mt-1 text-base leading-relaxed text-ink-dim">
                 {g.summary}
               </p>
-              <p className="mt-2 text-xs text-ink-faint">
+              <p className="mt-2 text-xs text-ink-dim">
                 {g.category} · {g.minutes} min read
               </p>
             </div>
@@ -318,25 +323,29 @@ export function GuidesTool({ company }: { company: Company }) {
 /* Vault — credentials shared with the client                          */
 /* ------------------------------------------------------------------ */
 
-function VaultRow({
-  name,
-  username,
-  secret,
-  url,
-  lastAccessDaysAgo,
-}: {
-  name: string;
-  username: string;
-  secret: string;
-  url: string;
-  lastAccessDaysAgo: number;
-}) {
+function VaultRow({ item }: { item: VaultEntry }) {
+  const { actions } = useCrm();
+  const [secret, setSecret] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Fetched (and access-logged) on demand — never sits in the page data.
+  const fetchSecret = async (): Promise<string> => {
+    if (secret !== null) return secret;
+    const value = await actions.revealVaultSecret(item.id);
+    setSecret(value);
+    return value;
+  };
+
+  const toggleShown = async () => {
+    if (!shown) await fetchSecret();
+    setShown(!shown);
+  };
+
   const copy = async () => {
+    const value = await fetchSecret();
     try {
-      await navigator.clipboard.writeText(secret);
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -350,28 +359,28 @@ function VaultRow({
       <KeyRound className="size-4 shrink-0 text-ink-faint" />
       <div className="min-w-0 flex-1">
         <a
-          href={url}
+          href={item.url}
           target="_blank"
           rel="noopener noreferrer"
           className="truncate text-sm font-medium hover:text-accent"
         >
-          {name}
+          {item.name}
         </a>
-        <p className="truncate text-xs text-ink-faint">{username}</p>
+        <p className="truncate text-xs text-ink-dim">{item.username}</p>
       </div>
       <code className="rounded-md border border-edge bg-surface-3 px-2.5 py-1 font-mono text-xs tabular-nums">
-        {shown ? secret : "••••••••••••"}
+        {shown && secret !== null ? secret || "(empty)" : "••••••••••••"}
       </code>
       <div className="flex shrink-0 items-center gap-1">
         <button
-          onClick={() => setShown(!shown)}
+          onClick={() => void toggleShown()}
           aria-label={shown ? "Hide password" : "Reveal password"}
           className="rounded-lg p-2 text-ink-dim transition hover:bg-surface-3 hover:text-ink"
         >
           {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
         <button
-          onClick={copy}
+          onClick={() => void copy()}
           aria-label="Copy password"
           className={`rounded-lg p-2 transition hover:bg-surface-3 ${
             copied ? "text-accent" : "text-ink-dim hover:text-ink"
@@ -380,15 +389,18 @@ function VaultRow({
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </button>
       </div>
-      <p className="w-full text-right text-[10px] text-ink-faint sm:w-auto">
-        accessed {lastAccessDaysAgo}d ago
+      <p className="w-full text-right text-[11px] text-ink-dim sm:w-auto">
+        {item.lastAccessAt
+          ? `accessed ${relTime(item.lastAccessAt)}`
+          : "never accessed"}
       </p>
     </div>
   );
 }
 
 export function VaultTool({ company }: { company: Company }) {
-  const items = vaultFor(company);
+  const { state } = useCrm();
+  const items = vaultFor(state, company.id);
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
       <ToolHeader
@@ -397,10 +409,15 @@ export function VaultTool({ company }: { company: Company }) {
       />
       <div className="divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
         {items.map((v) => (
-          <VaultRow key={v.id} {...v} />
+          <VaultRow key={v.id} item={v} />
         ))}
+        {items.length === 0 && (
+          <p className="p-5 text-sm text-ink-faint">
+            No credentials shared with you yet.
+          </p>
+        )}
       </div>
-      <p className="rounded-xl border border-edge bg-surface-2/60 p-5 text-sm leading-relaxed text-ink-dim">
+      <p className="rounded-xl border border-edge bg-surface-2/60 p-5 text-base leading-relaxed text-ink-dim">
         Everything here is encrypted before it&apos;s stored, shared only
         between you and the team, and every reveal is logged. Need another
         credential added or someone&apos;s access revoked? One support message
@@ -508,7 +525,7 @@ export function AssistantChat({
             <Send className="size-4" />
           </button>
         </form>
-        <p className="text-center text-[10px] text-ink-faint">
+        <p className="text-center text-[11px] text-ink-dim">
           Scripted demo — answers are computed live from your workspace data.
         </p>
       </div>

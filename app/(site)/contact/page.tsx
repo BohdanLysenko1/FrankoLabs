@@ -13,7 +13,7 @@ export default function ContactPage() {
   return (
     <Window title="Contact" path="~/contact/new-request" size="md">
       <div className="p-6 md:p-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Get in touch
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">

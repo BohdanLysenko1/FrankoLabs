@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, FilePen, PackageOpen, Receipt, ShieldCheck } from "lucide-react";
@@ -25,10 +26,11 @@ import {
  */
 export default function ClientDesktop({ company }: { company: Company }) {
   const { state } = useCrm();
+  const areaRef = useRef<HTMLDivElement>(null);
   const contact = primaryContactFor(state, company.id);
   const entitled = entitlementsFor(state, company);
   const tools = toolsFor(state, company);
-  const site = siteHealthFor(company);
+  const site = siteHealthFor(state, company);
   const projects = projectsFor(state, company.id).filter(
     (p) => p.stageKind === "open",
   );
@@ -47,21 +49,24 @@ export default function ClientDesktop({ company }: { company: Company }) {
 
   return (
     <div className="os-scroll h-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-center px-4 pb-36 pt-10">
+      <div
+        ref={areaRef}
+        className="mx-auto flex min-h-full max-w-5xl flex-col justify-center px-4 pb-36 pt-10"
+      >
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className="mb-8"
         >
-          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             <ShieldCheck className="size-3.5 text-accent" />
             {company.name} · client workspace
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
             Welcome back{contact ? `, ${firstNameOf(contact.name)}` : ""}.
           </h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-dim md:text-base">
+          <p className="mt-2 max-w-xl text-base leading-relaxed text-ink-dim">
             Everything about your work with {state.workspace.name} — live from
             the same system the team runs on.
           </p>
@@ -130,7 +135,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
 
         <div className="grid gap-5 md:grid-cols-2">
           {entitled.includes("website") && (
-            <Widget name={`site.${company.domain}`} delay={0.1}>
+            <Widget constraintsRef={areaRef} name={`site.${company.domain}`} delay={0.1}>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="flex items-center justify-center gap-1.5 text-2xl font-semibold tabular-nums text-accent">
@@ -163,13 +168,13 @@ export default function ClientDesktop({ company }: { company: Company }) {
           )}
 
           {entitled.includes("projects") && (
-            <Widget name="projects.active" delay={0.15}>
+            <Widget constraintsRef={areaRef} name="projects.active" delay={0.15}>
               <div className="space-y-4">
                 {projects.slice(0, 2).map((p) => (
                   <div key={p.dealId}>
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate text-sm font-medium">{p.name}</p>
-                      <p className="shrink-0 text-xs text-ink-faint">
+                      <p className="shrink-0 text-xs text-ink-dim">
                         {p.stageName.toLowerCase()}
                       </p>
                     </div>
@@ -182,7 +187,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
                   </div>
                 ))}
                 {projects.length === 0 && (
-                  <p className="py-2 text-sm text-ink-faint">
+                  <p className="py-2 text-sm text-ink-dim">
                     No active projects — delivered work lives in Projects.
                   </p>
                 )}
@@ -198,7 +203,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
           )}
 
           {entitled.includes("billing") && (
-            <Widget name="billing.summary" delay={0.2}>
+            <Widget constraintsRef={areaRef} name="billing.summary" delay={0.2}>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
                   <p
@@ -229,31 +234,31 @@ export default function ClientDesktop({ company }: { company: Company }) {
             </Widget>
           )}
 
-          <Widget name="updates.feed" delay={0.25}>
+          <Widget constraintsRef={areaRef} name="updates.feed" delay={0.25}>
             <ul className="space-y-2.5">
               {updates.slice(0, 4).map((u) => (
                 <li
                   key={u.id}
-                  className="flex items-start gap-2.5 text-sm leading-relaxed text-ink-dim"
+                  className="flex items-start gap-2.5 text-base leading-relaxed text-ink-dim"
                 >
                   <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />
                   <span className="min-w-0">
                     <span className="line-clamp-2">{u.summary}</span>
-                    <span className="text-xs text-ink-faint">
+                    <span className="text-xs text-ink-dim">
                       {relTime(u.at)}
                     </span>
                   </span>
                 </li>
               ))}
               {updates.length === 0 && (
-                <li className="py-2 text-sm text-ink-faint">
+                <li className="py-2 text-sm text-ink-dim">
                   Updates from the team will appear here.
                 </li>
               )}
             </ul>
           </Widget>
 
-          <Widget name="tools.installed" delay={0.3} className="md:col-span-2">
+          <Widget constraintsRef={areaRef} name="tools.installed" delay={0.3} className="md:col-span-2">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {tools.map((t) => (
                 <Link
@@ -266,7 +271,7 @@ export default function ClientDesktop({ company }: { company: Company }) {
                     strokeWidth={1.75}
                   />
                   <p className="text-[15px] font-medium">{t.name}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-ink-faint">
+                  <p className="mt-1 text-xs leading-relaxed text-ink-dim">
                     {t.description}
                   </p>
                 </Link>

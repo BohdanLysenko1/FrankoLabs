@@ -79,7 +79,8 @@ export function ToolHeader({
 const deployKindLabel = { content: "content", feature: "feature", fix: "fix" };
 
 export function WebsiteTool({ company }: { company: Company }) {
-  const site = siteHealthFor(company);
+  const { state } = useCrm();
+  const site = siteHealthFor(state, company);
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -120,7 +121,7 @@ export function WebsiteTool({ company }: { company: Company }) {
 
       {/* Lighthouse-style scores */}
       <div className="rounded-xl border border-edge bg-surface-2/60 p-5">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Site quality
         </p>
         <div className="mt-4 space-y-3">
@@ -149,7 +150,7 @@ export function WebsiteTool({ company }: { company: Company }) {
 
       {/* Pages */}
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Your pages
         </p>
         <div className="mt-3 divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
@@ -157,7 +158,7 @@ export function WebsiteTool({ company }: { company: Company }) {
             <div key={p.path} className="flex items-center gap-3 p-4">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.title}</p>
-                <p className="truncate font-mono text-xs text-ink-faint">
+                <p className="truncate font-mono text-xs text-ink-dim">
                   {p.path}
                 </p>
               </div>
@@ -176,7 +177,7 @@ export function WebsiteTool({ company }: { company: Company }) {
 
       {/* Deploys */}
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Recent deploys
         </p>
         <div className="mt-3 divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
@@ -185,7 +186,7 @@ export function WebsiteTool({ company }: { company: Company }) {
               <Rocket className="size-4 shrink-0 text-ink-faint" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{dep.label}</p>
-                <p className="text-xs text-ink-faint">
+                <p className="text-xs text-ink-dim">
                   {dep.daysAgo === 0 ? "today" : `${dep.daysAgo} days ago`}
                 </p>
               </div>
@@ -255,7 +256,7 @@ function DeliverableReview({ deliverable }: { deliverable: Deliverable }) {
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{deliverable.title}</p>
-          <p className="text-xs text-ink-faint">
+          <p className="text-xs text-ink-dim">
             {deliverableKindLabel[deliverable.kind]} · posted{" "}
             {relTime(deliverable.postedAt)}
           </p>
@@ -271,7 +272,7 @@ function DeliverableReview({ deliverable }: { deliverable: Deliverable }) {
         </a>
       </div>
       {deliverable.note && (
-        <p className="mt-2.5 text-sm leading-relaxed text-ink-dim">
+        <p className="mt-2.5 text-base leading-relaxed text-ink-dim">
           {deliverable.note}
         </p>
       )}
@@ -392,7 +393,7 @@ export function ProjectsTool({ company }: { company: Company }) {
                 style={{ width: `${p.progress}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-ink-faint">
+            <p className="mt-2 text-xs text-ink-dim">
               Started {fmtDate(p.startedAt)}
               {p.deliveredAt ? ` · delivered ${fmtDate(p.deliveredAt)}` : ""}
             </p>
@@ -420,7 +421,7 @@ export function ProjectsTool({ company }: { company: Company }) {
 
       {responded.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Reviewed deliverables
           </p>
           <div className="mt-3 space-y-3">
@@ -432,7 +433,7 @@ export function ProjectsTool({ company }: { company: Company }) {
       )}
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Updates from the team
         </p>
         <div className="mt-3 divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
@@ -441,7 +442,7 @@ export function ProjectsTool({ company }: { company: Company }) {
               <FileText className="mt-0.5 size-4 shrink-0 text-ink-faint" />
               <div className="min-w-0">
                 <p className="text-sm leading-relaxed">{u.summary}</p>
-                <p className="mt-1 text-xs text-ink-faint">{relTime(u.at)}</p>
+                <p className="mt-1 text-xs text-ink-dim">{relTime(u.at)}</p>
               </div>
             </div>
           ))}
@@ -509,7 +510,7 @@ export function BillingTool({ company }: { company: Company }) {
             <Receipt className="size-4 shrink-0 text-ink-faint" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{inv.number}</p>
-              <p className="truncate text-xs text-ink-faint">{inv.label}</p>
+              <p className="truncate text-xs text-ink-dim">{inv.label}</p>
             </div>
             <div className="shrink-0 text-right">
               <p className="font-mono text-sm tabular-nums">
@@ -540,7 +541,7 @@ export function BillingTool({ company }: { company: Company }) {
         )}
       </div>
 
-      <p className="text-xs leading-relaxed text-ink-faint">
+      <p className="text-xs leading-relaxed text-ink-dim">
         A question about an invoice?{" "}
         <Link href="/portal/support" className="text-accent hover:underline">
           Send the team a message
@@ -562,13 +563,13 @@ export function BillingTool({ company }: { company: Company }) {
                   {fmtMoney(paying.amount)}
                 </p>
               </div>
-              <p className="mt-1 text-xs text-ink-faint">{paying.label}</p>
+              <p className="mt-1 text-xs text-ink-dim">{paying.label}</p>
             </div>
             <div className="flex items-center gap-3.5 rounded-xl border border-edge bg-surface-2/60 p-4">
               <CreditCard className="size-5 shrink-0 text-ink-dim" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">Card on file</p>
-                <p className="font-mono text-xs text-ink-faint">
+                <p className="font-mono text-xs text-ink-dim">
                   •••• •••• •••• 4242
                 </p>
               </div>
@@ -770,7 +771,7 @@ export function SupportTool({ company }: { company: Company }) {
       )}
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Your requests
         </p>
         <div className="mt-3 space-y-3">
@@ -793,7 +794,7 @@ export function SupportTool({ company }: { company: Company }) {
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm leading-relaxed">{t.subject}</p>
-                    <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
+                    <p className="mt-1 flex items-center gap-2 text-xs text-ink-dim">
                       <MessageSquare className="size-3" />
                       {t.messages.length}{" "}
                       {t.messages.length === 1 ? "message" : "messages"} ·

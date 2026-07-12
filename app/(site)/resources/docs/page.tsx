@@ -63,13 +63,13 @@ export default function DocsPage() {
                 early access
               </span>
             </div>
-            <p className="mt-0.5 text-[15px] text-ink-dim">
+            <p className="mt-0.5 text-base text-ink-dim">
               What the platform is, and how the pieces fit together.
             </p>
           </div>
         </div>
 
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           What is Franko OS
         </p>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">
@@ -81,25 +81,25 @@ export default function DocsPage() {
           full setup guides arrive with each module&apos;s release.
         </p>
 
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Core concepts
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {concepts.map((c) => (
             <div
               key={c.name}
-              className="rounded-xl border border-edge bg-surface-2/40 p-5"
+              className="rounded-xl border border-edge bg-surface-2/65 p-5"
             >
               <c.icon className="size-6 text-accent" strokeWidth={1.75} />
               <p className="mt-3 text-[15px] font-medium">{c.name}</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink-dim">
+              <p className="mt-1.5 text-[15px] leading-relaxed text-ink-dim">
                 {c.description}
               </p>
             </div>
           ))}
         </div>
 
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Module reference
         </p>
         <p className="mt-2 max-w-2xl text-base leading-relaxed text-ink-dim">
@@ -113,7 +113,7 @@ export default function DocsPage() {
               <Link
                 key={m.slug}
                 href={`/products/${m.slug}`}
-                className="group flex items-start gap-4 rounded-xl border border-edge bg-surface-2/40 p-4 transition hover:border-edge-strong hover:bg-surface-2/70"
+                className="group flex items-start gap-4 rounded-xl border border-edge bg-surface-2/65 p-4 transition hover:border-edge-strong hover:bg-surface-2/70"
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-edge bg-surface-3 text-ink-dim transition group-hover:text-accent">
                   <m.icon className="size-5" strokeWidth={1.75} />
@@ -137,7 +137,7 @@ export default function DocsPage() {
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-accent-dim/50 p-6">
           <div>
             <p className="text-lg font-medium">Want access before launch?</p>
-            <p className="mt-1 text-[15px] text-ink-dim">
+            <p className="mt-1 text-base text-ink-dim">
               Early-access users get modules as they ship — and a say in what
               ships next.
             </p>

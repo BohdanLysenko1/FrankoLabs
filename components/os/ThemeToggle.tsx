@@ -24,7 +24,7 @@ export default function ThemeToggle() {
     <button
       aria-label={label}
       title={label}
-      className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink-dim"
+      className="rounded-md p-1.5 text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
       onClick={() => {
         playSound("palette");
         openThemeDialog();

@@ -12,47 +12,49 @@ import {
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import type { Company, Contact } from "@/lib/crm/types";
-import {
-  setClientPassword,
-  verifyClientPassword,
-  useAccounts,
-} from "@/lib/accounts";
+import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/supabase/session";
 import { primaryContactFor } from "./portal";
 
 /**
- * Portal auth: the session is a signed-in client company, persisted to
- * localStorage. Accounts are the CRM's client companies — the invite link
- * activates one by letting the client set their password (stored hashed in
- * lib/accounts). A real provider replaces signIn/signOut without touching
- * consumers.
+ * Portal auth. Three ways to be "in" a portal:
+ *
+ *  - a real client session — a Supabase user linked to a company via
+ *    company_members (invited from the CRM's Portal view);
+ *  - an agency member previewing a client portal (?portal-as=<companyId>,
+ *    the CRM's "Preview portal" link) — kept in localStorage;
+ *  - demo mode — the same preview mechanism over the seeded demo store,
+ *    driven by the one-click tiles on /login.
  */
 
 const SESSION_KEY = "franko-portal-session";
 
-type PortalSession = { companyId: string; at: number };
+type PreviewSession = { companyId: string; at: number };
 
 type PortalAuthValue = {
-  /** False until the session has been read on the client — render nothing portal-specific before then. */
+  /** False until the session has been read on the client. */
   ready: boolean;
-  /** The signed-in client company, or null. Cleared if the company stops being a client. */
+  /** The signed-in (or previewed) client company, or null. */
   company: Company | null;
   contact: Contact | null;
-  /** Whether a client has set their password yet (activated their account). */
-  isActivated: (companyId: string) => boolean;
-  /** Verify the password and open a session. False on wrong password or un-activated account. */
-  signIn: (companyId: string, password: string) => Promise<boolean>;
-  /** First sign-in from an invite link: set the password, then open a session. */
-  activate: (companyId: string, password: string) => Promise<boolean>;
+  /** True when this is a real client account (not a preview/demo). */
+  isClientUser: boolean;
+  /** Real client sign-in. Resolves to an error message, or null on success. */
+  signIn: (email: string, password: string) => Promise<string | null>;
+  /** Ask for a password-reset email. Error message or null. */
+  requestReset: (email: string) => Promise<string | null>;
+  /** Demo/preview: open a client desktop without credentials. */
+  previewAs: (companyId: string) => void;
   signOut: () => void;
 };
 
 const PortalAuthContext = createContext<PortalAuthValue | null>(null);
 
-function readSession(): PortalSession | null {
+function readPreview(): PreviewSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const saved = JSON.parse(raw) as Partial<PortalSession>;
+    const saved = JSON.parse(raw) as Partial<PreviewSession>;
     return typeof saved.companyId === "string"
       ? { companyId: saved.companyId, at: saved.at ?? Date.now() }
       : null;
@@ -63,19 +65,19 @@ function readSession(): PortalSession | null {
 
 export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { state } = useCrm();
-  const accounts = useAccounts();
-  const [session, setSession] = useState<PortalSession | null>(null);
-  const [ready, setReady] = useState(false);
+  const session = useSession();
+  const { state, loading } = useCrm();
+  const [preview, setPreview] = useState<PreviewSession | null>(null);
+  const [previewRead, setPreviewRead] = useState(false);
 
-  // Restore the saved session; ?portal-as=<companyId> (the CRM's "preview
-  // portal" link) signs in as that client and cleans the URL.
+  // Restore the saved preview; ?portal-as=<companyId> (the CRM's "preview
+  // portal" link) opens that client's desktop and cleans the URL.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const previewAs = params.get("portal-as");
+    let next: PreviewSession | null;
     if (previewAs) {
-      const next = { companyId: previewAs, at: Date.now() };
-      setSession(next);
+      next = { companyId: previewAs, at: Date.now() };
       try {
         localStorage.setItem(SESSION_KEY, JSON.stringify(next));
       } catch {
@@ -91,14 +93,18 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
         `${window.location.pathname}${query ? `?${query}` : ""}`,
       );
     } else {
-      setSession(readSession());
+      next = readPreview();
     }
-    setReady(true);
-  }, [router]);
+    const restoreTimer = window.setTimeout(() => {
+      setPreview(next);
+      setPreviewRead(true);
+    }, 0);
+    return () => clearTimeout(restoreTimer);
+  }, []);
 
-  const openSession = useCallback((companyId: string) => {
+  const openPreview = useCallback((companyId: string) => {
     const next = { companyId, at: Date.now() };
-    setSession(next);
+    setPreview(next);
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(next));
     } catch {
@@ -106,53 +112,90 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signIn = useCallback(
-    async (companyId: string, password: string) => {
-      const company = state.companies.find((c) => c.id === companyId);
-      if (!company?.isClient) return false;
-      if (!(await verifyClientPassword(companyId, password))) return false;
-      openSession(companyId);
-      return true;
-    },
-    [state.companies, openSession],
-  );
-
-  const activate = useCallback(
-    async (companyId: string, password: string) => {
-      const company = state.companies.find((c) => c.id === companyId);
-      if (!company?.isClient || password.length < 8) return false;
-      await setClientPassword(companyId, password);
-      openSession(companyId);
-      return true;
-    },
-    [state.companies, openSession],
-  );
-
-  const signOut = useCallback(() => {
-    setSession(null);
+  const clearPreview = useCallback(() => {
+    setPreview(null);
     try {
       localStorage.removeItem(SESSION_KEY);
     } catch {
       // Nothing to clear.
     }
-    router.push("/");
-  }, [router]);
+  }, []);
 
-  const value = useMemo(() => {
-    const company = session
-      ? (state.companies.find((c) => c.id === session.companyId && c.isClient) ??
-        null)
-      : null;
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<string | null> => {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) return "That email and password don't match.";
+      await session.refresh();
+      return null;
+    },
+    [session],
+  );
+
+  const requestReset = useCallback(
+    async (email: string): Promise<string | null> => {
+      if (!email.includes("@")) return "Enter the email you signed up with.";
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/set-password`,
+      });
+      return error ? error.message : null;
+    },
+    [],
+  );
+
+  const isRealClient = Boolean(session.user && session.clientAccess);
+
+  const signOut = useCallback(() => {
+    clearPreview();
+    if (isRealClient) void session.signOut();
+    router.push("/");
+  }, [clearPreview, isRealClient, session, router]);
+
+  const value = useMemo<PortalAuthValue>(() => {
+    const ready = session.ready && previewRead && !loading;
+
+    let company: Company | null = null;
+    if (isRealClient && session.clientAccess) {
+      company =
+        state.companies.find(
+          (c) => session.clientAccess!.companyIds.includes(c.id) && c.isClient,
+        ) ?? null;
+    } else if (preview) {
+      // Members preview any client; the demo store previews its own clients.
+      const allowed = session.demo || !session.user || Boolean(session.membership);
+      if (allowed) {
+        company =
+          state.companies.find((c) => c.id === preview.companyId && c.isClient) ??
+          null;
+      }
+    }
+
     return {
       ready,
       company,
       contact: company ? primaryContactFor(state, company.id) : null,
-      isActivated: (companyId: string) => Boolean(accounts.clients[companyId]),
+      isClientUser: isRealClient,
       signIn,
-      activate,
+      requestReset,
+      previewAs: openPreview,
       signOut,
     };
-  }, [ready, session, state, accounts, signIn, activate, signOut]);
+  }, [
+    session,
+    previewRead,
+    loading,
+    preview,
+    state,
+    isRealClient,
+    signIn,
+    requestReset,
+    openPreview,
+    signOut,
+  ]);
 
   return (
     <PortalAuthContext.Provider value={value}>

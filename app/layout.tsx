@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SessionProvider } from "@/lib/supabase/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -52,7 +53,7 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem("franko-os-theme");if(t==="light"||t==="xp")document.documentElement.classList.add(t)}catch(e){}`,
           }}
         />
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

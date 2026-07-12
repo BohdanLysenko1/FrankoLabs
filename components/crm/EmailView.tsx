@@ -164,7 +164,7 @@ export default function EmailView() {
         <SectionLabel>Wired to the CRM</SectionLabel>
         <Card className="mt-3 flex items-start gap-3.5 p-5">
           <MailPlus className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={1.75} />
-          <p className="text-sm leading-relaxed text-ink-dim">
+          <p className="text-base leading-relaxed text-ink-dim">
             {state.rules.filter((r) => r.enabled).length} CRM automation
             {state.rules.filter((r) => r.enabled).length === 1 ? "" : "s"}{" "}
             (Settings → Automations) already fire on the same triggers these

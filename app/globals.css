@@ -3,19 +3,24 @@
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base--line-height: 1.625rem;
 
   /* Franko OS dark-first palette */
   --color-desktop: #060608;
-  --color-surface: #0e0e11;
-  --color-surface-2: #16161a;
-  --color-surface-3: #1d1d22;
-  --color-edge: rgba(255, 255, 255, 0.08);
-  --color-edge-strong: rgba(255, 255, 255, 0.16);
-  --color-ink: #ededf0;
-  --color-ink-dim: #9b9ba4;
-  --color-ink-faint: #62626c;
+  --color-surface: #101014;
+  --color-surface-2: #1a1a20;
+  --color-surface-3: #25252d;
+  --color-edge: rgba(255, 255, 255, 0.12);
+  --color-edge-strong: rgba(255, 255, 255, 0.24);
+  --color-ink: #f5f5f7;
+  --color-ink-dim: #c5c5ce;
+  --color-ink-faint: #92929f;
   --color-accent: #34d399;
-  --color-accent-dim: rgba(52, 211, 153, 0.14);
+  --color-accent-dim: rgba(52, 211, 153, 0.18);
   --color-danger: #f87171;
   --color-warn: #fbbf24;
 }
@@ -26,13 +31,13 @@ html.light {
   --color-surface: #f4f4f6;
   --color-surface-2: #ececef;
   --color-surface-3: #e2e2e6;
-  --color-edge: rgba(20, 20, 30, 0.1);
-  --color-edge-strong: rgba(20, 20, 30, 0.2);
+  --color-edge: rgba(20, 20, 30, 0.14);
+  --color-edge-strong: rgba(20, 20, 30, 0.26);
   --color-ink: #212127;
-  --color-ink-dim: #5d5d68;
-  --color-ink-faint: #94949e;
+  --color-ink-dim: #4e4e59;
+  --color-ink-faint: #747480;
   --color-accent: #047857;
-  --color-accent-dim: rgba(4, 120, 87, 0.1);
+  --color-accent-dim: rgba(4, 120, 87, 0.13);
   --color-danger: #dc2626;
   --color-warn: #b45309;
 }
@@ -53,6 +58,8 @@ body {
   background: var(--color-desktop);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -72,11 +79,11 @@ body {
   background-image:
     radial-gradient(
       ellipse 80% 60% at 50% -10%,
-      rgba(52, 211, 153, 0.06),
+      rgba(52, 211, 153, 0.045),
       transparent 60%
     ),
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
   background-size:
     100% 100%,
     48px 48px,
@@ -141,7 +148,7 @@ body {
   height: 55vw;
   border-radius: 50%;
   filter: blur(120px);
-  opacity: 0.07;
+  opacity: 0.045;
   will-change: transform;
 }
 .wallpaper-glow-a {

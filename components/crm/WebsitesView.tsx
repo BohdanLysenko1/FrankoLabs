@@ -30,7 +30,7 @@ export default function WebsitesView() {
       ) : (
         <div className="space-y-4">
           {clients.map((c) => {
-            const site = siteHealthFor(c);
+            const site = siteHealthFor(state, c);
             return (
               <Card key={c.id} className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -119,7 +119,7 @@ export default function WebsitesView() {
 
       <div>
         <SectionLabel>Coming with real hosting hooks</SectionLabel>
-        <Card className="mt-3 p-5 text-sm leading-relaxed text-ink-dim">
+        <Card className="mt-3 p-5 text-base leading-relaxed text-ink-dim">
           Visual content editing, one-click publishes with instant rollback,
           and broken-link checks run from this board. The client-facing view is
           already live in every portal — this is the control room side.

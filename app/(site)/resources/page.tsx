@@ -62,7 +62,7 @@ export default function ResourcesPage() {
   return (
     <Window title="Resources" path="~/resources" size="md">
       <div className="p-6 md:p-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Knowledge base
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">
@@ -74,14 +74,14 @@ export default function ResourcesPage() {
             <Link
               key={r.name}
               href={r.href}
-              className="group rounded-2xl border border-edge bg-surface-2/40 p-5 transition hover:border-edge-strong hover:bg-surface-2/70"
+              className="group rounded-2xl border border-edge bg-surface-2/65 p-5 transition hover:border-edge-strong hover:bg-surface-2/70"
             >
               <r.icon
                 className="size-7 text-ink-dim transition group-hover:text-accent"
                 strokeWidth={1.75}
               />
               <p className="mt-3 text-lg font-medium">{r.name}</p>
-              <p className="mt-1 text-[15px] text-ink-dim">{r.detail}</p>
+              <p className="mt-1 text-base text-ink-dim">{r.detail}</p>
               <span className="mt-4 inline-flex items-center gap-1.5 text-xs text-accent">
                 Open
                 <ArrowRight className="size-3.5 transition group-hover:translate-x-0.5" />
@@ -90,10 +90,10 @@ export default function ResourcesPage() {
           ))}
         </div>
 
-        <h3 className="mt-12 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <h3 className="mt-12 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Frequently asked questions
         </h3>
-        <div className="mt-3 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+        <div className="mt-3 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
           {faq.map((f) => (
             <details key={f.q} className="group p-5">
               <summary className="cursor-pointer list-none text-base font-medium marker:hidden">
@@ -102,7 +102,7 @@ export default function ResourcesPage() {
                 </span>
                 {f.q}
               </summary>
-              <p className="mt-3 pl-6 text-[15px] leading-relaxed text-ink-dim">
+              <p className="mt-3 pl-6 text-base leading-relaxed text-ink-dim">
                 {f.a}
               </p>
             </details>
@@ -112,7 +112,7 @@ export default function ResourcesPage() {
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-accent-dim/50 p-6">
           <div>
             <p className="text-lg font-medium">Didn&apos;t find your answer?</p>
-            <p className="mt-1 text-[15px] text-ink-dim">
+            <p className="mt-1 text-base text-ink-dim">
               Ask us directly — we reply within one business day.
             </p>
           </div>

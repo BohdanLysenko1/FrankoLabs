@@ -27,8 +27,8 @@ export default function BootScreen() {
       sessionStorage.getItem(BOOT_KEY) ||
       new URLSearchParams(window.location.search).has("noboot")
     ) {
-      setBooting(false);
-      return;
+      const skipTimer = window.setTimeout(() => setBooting(false), 0);
+      return () => clearTimeout(skipTimer);
     }
     const lineTimer = setInterval(
       () => setLine((l) => Math.min(l + 1, bootLines.length - 1)),

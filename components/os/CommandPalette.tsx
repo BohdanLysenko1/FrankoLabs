@@ -35,10 +35,9 @@ import {
   type Company,
   type OpenRequest,
 } from "@/lib/crm/types";
-import { clientGuides, docArticles } from "@/lib/docs";
 import { productModules, statusStyle } from "@/lib/products";
 import { toolsFor } from "@/lib/portal/portal";
-import { ownerSignOut, useAccounts, useOwnerSession } from "@/lib/accounts";
+import { useSession } from "@/lib/supabase/session";
 import { getTheme, nextTheme, setTheme, useTheme } from "@/lib/theme";
 import { resetWindowLayouts } from "@/lib/windows";
 import { playSound } from "@/lib/sound";
@@ -98,7 +97,7 @@ const itemCls =
   "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-dim data-[selected=true]:bg-accent-dim data-[selected=true]:text-ink";
 
 const groupCls =
-  "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-ink-faint";
+  "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-ink-dim";
 
 export default function CommandPalette({
   open,
@@ -108,8 +107,7 @@ export default function CommandPalette({
 }: PaletteProps) {
   const router = useRouter();
   const { state, actions } = useCrm();
-  const { owner } = useAccounts();
-  const ownerSignedIn = useOwnerSession();
+  const session = useSession();
   const theme = useTheme();
   const [query, setQuery] = useState("");
   const prevFocus = useRef<HTMLElement | null>(null);
@@ -145,9 +143,11 @@ export default function CommandPalette({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen, close]);
 
-  // CRM data stays behind the owner lock: the CRM shell only mounts this
-  // palette once unlocked, and the site palette checks the session itself.
-  const crmUnlocked = scope === "crm" || !owner || ownerSignedIn;
+  // CRM data stays behind auth: the CRM shell only mounts this palette once
+  // signed in, and the site palette checks the session itself. Signed-out
+  // visitors browse the seeded demo store, which is public by design.
+  const crmUnlocked =
+    scope === "crm" || !session.user || Boolean(session.membership);
   const showCrmData = !company && crmUnlocked;
 
   const groups = useMemo<Group[]>(() => {
@@ -250,14 +250,14 @@ export default function CommandPalette({
         perform: () => resetWindowLayouts(),
       });
     }
-    if (scope === "crm" && owner && ownerSignedIn) {
+    if (scope === "crm" && session.user) {
       actionEntries.push({
         id: "act-lock",
         label: "Lock Workspace",
         icon: LockKeyhole,
         hint: "sign out of the CRM",
         keywords: ["logout", "sign out", "secure"],
-        perform: () => ownerSignOut(),
+        perform: () => void session.signOut(),
       });
     }
     result.push({ heading: "Actions", entries: actionEntries });
@@ -403,7 +403,7 @@ export default function CommandPalette({
       });
       result.push({
         heading: "Docs",
-        entries: docArticles.map((a) => ({
+        entries: state.docs.map((a) => ({
           id: `doc-${a.slug}`,
           label: a.title,
           icon: FileText,
@@ -417,14 +417,16 @@ export default function CommandPalette({
     if (company) {
       result.push({
         heading: "Guides",
-        entries: clientGuides.map((a) => ({
-          id: `guide-${a.slug}`,
-          label: a.title,
-          icon: FileText,
-          hint: `${a.minutes} min read`,
-          keywords: ["guide", "help", a.summary],
-          perform: go("/portal/guides"),
-        })),
+        entries: state.docs
+          .filter((a) => a.clientVisible)
+          .map((a) => ({
+            id: `guide-${a.slug}`,
+            label: a.title,
+            icon: FileText,
+            hint: `${a.minutes} min read`,
+            keywords: ["guide", "help", a.summary],
+            perform: go("/portal/guides"),
+          })),
       });
     } else {
       result.push({
@@ -448,8 +450,7 @@ export default function CommandPalette({
     actions,
     router,
     theme,
-    owner,
-    ownerSignedIn,
+    session,
     crmUnlocked,
     showCrmData,
   ]);
@@ -488,7 +489,7 @@ export default function CommandPalette({
       <entry.icon className="size-4.5 shrink-0" strokeWidth={1.75} />
       <span className="min-w-0 flex-1 truncate">{entry.label}</span>
       {entry.hint && (
-        <span className="ml-auto max-w-44 shrink-0 truncate text-xs text-ink-faint">
+        <span className="ml-auto max-w-44 shrink-0 truncate text-xs text-ink-dim">
           {entry.hint}
         </span>
       )}
@@ -508,11 +509,11 @@ export default function CommandPalette({
     >
       <Command
         label="Franko OS command palette"
-        className="os-menu w-full max-w-xl overflow-hidden rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/70 backdrop-blur-xl"
+        className="os-menu w-full max-w-xl overflow-hidden rounded-xl border border-edge bg-surface-2 shadow-2xl shadow-black/70 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-edge px-4">
-          <Search className="size-5 text-ink-faint" />
+          <Search className="size-5 text-ink-dim" />
           <Command.Input
             autoFocus
             value={query}
@@ -520,12 +521,12 @@ export default function CommandPalette({
             placeholder="Search Franko OS — records, pages, actions…"
             className="h-14 w-full bg-transparent text-base outline-none placeholder:text-ink-faint"
           />
-          <kbd className="rounded border border-edge px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">
+          <kbd className="rounded border border-edge px-1.5 py-0.5 font-mono text-[11px] text-ink-dim">
             esc
           </kbd>
         </div>
         <Command.List className="os-scroll max-h-80 overflow-y-auto p-2">
-          <Command.Empty className="px-3 py-8 text-center font-mono text-xs text-ink-faint">
+          <Command.Empty className="px-3 py-8 text-center font-mono text-xs text-ink-dim">
             no results found
           </Command.Empty>
 
@@ -541,7 +542,7 @@ export default function CommandPalette({
                   <History className="size-4.5 shrink-0" strokeWidth={1.75} />
                   <span className="min-w-0 flex-1 truncate">{entry.label}</span>
                   {entry.hint && (
-                    <span className="ml-auto max-w-44 shrink-0 truncate text-xs text-ink-faint">
+                    <span className="ml-auto max-w-44 shrink-0 truncate text-xs text-ink-dim">
                       {entry.hint}
                     </span>
                   )}

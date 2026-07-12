@@ -15,6 +15,7 @@ import {
   TriangleAlert,
   Wifi,
 } from "lucide-react";
+import { useCrm } from "@/lib/crm/store";
 import type { Company } from "@/lib/crm/types";
 import { fmtDate } from "@/lib/crm/types";
 import {
@@ -54,7 +55,7 @@ function UsageMeter({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="mt-2 text-xs text-ink-faint">
+      <p className="mt-2 text-xs text-ink-dim">
         <span className="font-mono tabular-nums text-ink-dim">
           {used} {unit}
         </span>{" "}
@@ -65,7 +66,8 @@ function UsageMeter({
 }
 
 export function HostingTool({ company }: { company: Company }) {
-  const site = siteHealthFor(company);
+  const { state } = useCrm();
+  const site = siteHealthFor(state, company);
   const [restored, setRestored] = useState<number | null>(null);
 
   const restore = (daysAgo: number) => {
@@ -114,7 +116,7 @@ export function HostingTool({ company }: { company: Company }) {
 
       {/* Backups */}
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Backups — daily snapshots
         </p>
         {restored !== null && (
@@ -138,7 +140,7 @@ export function HostingTool({ company }: { company: Company }) {
                       ? "Yesterday"
                       : `${b.daysAgo} days ago`}
                 </p>
-                <p className="text-xs text-ink-faint">
+                <p className="text-xs text-ink-dim">
                   Full snapshot · {b.size}
                 </p>
               </div>
@@ -156,7 +158,7 @@ export function HostingTool({ company }: { company: Company }) {
 
       {/* Incidents */}
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Incident history
         </p>
         <div className="mt-3 rounded-xl border border-edge bg-surface-2/60">
@@ -174,7 +176,7 @@ export function HostingTool({ company }: { company: Company }) {
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" />
                   <div className="min-w-0">
                     <p className="text-sm">{inc.title}</p>
-                    <p className="mt-1 text-xs text-ink-faint">
+                    <p className="mt-1 text-xs text-ink-dim">
                       {inc.daysAgo} days ago · resolved in {inc.durationMin} min
                     </p>
                   </div>
@@ -193,7 +195,8 @@ export function HostingTool({ company }: { company: Company }) {
 /* ------------------------------------------------------------------ */
 
 export function DomainsTool({ company }: { company: Company }) {
-  const site = siteHealthFor(company);
+  const { state } = useCrm();
+  const site = siteHealthFor(state, company);
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
       <div className="flex items-center gap-3">
@@ -231,7 +234,7 @@ export function DomainsTool({ company }: { company: Company }) {
       </div>
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           DNS records — what each one does
         </p>
         <div className="mt-3 divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
@@ -247,7 +250,7 @@ export function DomainsTool({ company }: { company: Company }) {
               <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-dim">
                 {r.value}
               </span>
-              <span className="w-full text-xs text-ink-faint sm:w-auto sm:text-right">
+              <span className="w-full text-xs text-ink-dim sm:w-auto sm:text-right">
                 {r.note}
               </span>
             </div>
@@ -255,7 +258,7 @@ export function DomainsTool({ company }: { company: Company }) {
         </div>
       </div>
 
-      <p className="rounded-xl border border-edge bg-surface-2/60 p-5 text-sm leading-relaxed text-ink-dim">
+      <p className="rounded-xl border border-edge bg-surface-2/60 p-5 text-base leading-relaxed text-ink-dim">
         Records, registration and certificates are fully managed — nothing
         here needs your attention. Changing email providers or adding a
         subdomain? Send a support request and it&apos;s handled the same day.
@@ -290,7 +293,7 @@ function TrafficChart({ days }: { days: { at: number; visits: number; leads: num
   return (
     <div className="rounded-xl border border-edge bg-surface-2/60 p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Daily visits · last 30 days
         </p>
         <p className="h-4 font-mono text-xs tabular-nums text-ink-dim">
@@ -318,7 +321,7 @@ function TrafficChart({ days }: { days: { at: number; visits: number; leads: num
           </div>
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-[10px] text-ink-faint">
+      <div className="mt-2 flex justify-between text-[11px] text-ink-dim">
         <span>{fmtDate(days[0].at)}</span>
         <span>{fmtDate(days[days.length - 1].at)}</span>
       </div>
@@ -354,7 +357,8 @@ function BarRow({
 }
 
 export function AnalyticsTool({ company }: { company: Company }) {
-  const data = analyticsFor(company);
+  const { state } = useCrm();
+  const data = analyticsFor(state, company);
   const maxSource = Math.max(...data.sources.map((s) => s.share));
   const maxPage = Math.max(...data.topPages.map((p) => p.views));
   const maxFunnel = data.funnel[0].value;
@@ -390,7 +394,7 @@ export function AnalyticsTool({ company }: { company: Company }) {
 
       <div className="grid gap-5 md:grid-cols-2">
         <div className="rounded-xl border border-edge bg-surface-2/60 p-5">
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Where visitors come from
           </p>
           <div className="mt-4 space-y-2.5">
@@ -406,7 +410,7 @@ export function AnalyticsTool({ company }: { company: Company }) {
           </div>
         </div>
         <div className="rounded-xl border border-edge bg-surface-2/60 p-5">
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Top pages
           </p>
           <div className="mt-4 space-y-2.5">
@@ -424,7 +428,7 @@ export function AnalyticsTool({ company }: { company: Company }) {
       </div>
 
       <div className="rounded-xl border border-edge bg-surface-2/60 p-5">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           From visitor to conversation
         </p>
         <div className="mt-4 space-y-2.5">
@@ -438,7 +442,7 @@ export function AnalyticsTool({ company }: { company: Company }) {
             />
           ))}
         </div>
-        <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+        <p className="mt-4 text-xs leading-relaxed text-ink-dim">
           Leads flow straight into {`the team's`} CRM — the same numbers you
           see here drive the follow-ups they make.
         </p>

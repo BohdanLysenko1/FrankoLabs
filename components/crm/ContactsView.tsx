@@ -64,7 +64,7 @@ function EditContactForm({
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-edge bg-surface-2/40 p-4">
+    <div className="space-y-4 rounded-xl border border-edge bg-surface-2/65 p-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Name">
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
@@ -220,7 +220,7 @@ function ContactDrawer({
       </div>
 
       {contact.notes && (
-        <p className="mt-4 rounded-xl border border-edge bg-surface-2/40 p-4 text-sm leading-relaxed text-ink-dim">
+        <p className="mt-4 rounded-xl border border-edge bg-surface-2/65 p-4 text-base leading-relaxed text-ink-dim">
           {contact.notes}
         </p>
       )}
@@ -262,7 +262,7 @@ function ContactDrawer({
             {tasks.map((t) => (
               <label
                 key={t.id}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-edge bg-surface-2/40 px-3 py-2.5 text-sm"
+                className="flex cursor-pointer items-center gap-3 rounded-lg border border-edge bg-surface-2/65 px-3 py-2.5 text-sm"
               >
                 <input
                   type="checkbox"

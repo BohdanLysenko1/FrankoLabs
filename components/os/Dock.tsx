@@ -12,6 +12,7 @@ import { useCrm } from "@/lib/crm/store";
 import { usePortalAuth } from "@/lib/portal/auth";
 import { toolBadgesFor, toolsFor } from "@/lib/portal/portal";
 import { useMinimizedWindows } from "@/lib/windows";
+import { useClock } from "@/lib/clock";
 import { playSound } from "@/lib/sound";
 import { useTheme } from "@/lib/theme";
 
@@ -53,7 +54,7 @@ export default function Dock() {
 
   return (
     <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center pb-3">
-      <nav className="pointer-events-auto flex max-w-full items-end gap-1 overflow-x-auto rounded-2xl border border-edge bg-surface/80 px-3 py-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+      <nav className="pointer-events-auto flex max-w-full items-end gap-1 overflow-x-auto rounded-2xl border border-edge bg-surface/95 px-3 py-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
         {items.map((app, i) => {
           const active = isActive(pathname, app.href);
           const Icon = app.icon;
@@ -143,22 +144,7 @@ export default function Dock() {
 /* ------------------------------------------------------------------ */
 
 function TrayClock() {
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      setTime(
-        `${String(now.getHours()).padStart(2, "0")}:${String(
-          now.getMinutes(),
-        ).padStart(2, "0")}`,
-      );
-    };
-    tick();
-    const id = setInterval(tick, 15_000);
-    return () => clearInterval(id);
-  }, []);
-
+  const time = useClock();
   return <span className="text-xs tabular-nums">{time}</span>;
 }
 

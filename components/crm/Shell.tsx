@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Command,
   Eye,
@@ -27,7 +27,7 @@ import { useCrm } from "@/lib/crm/store";
 import { crmNav as nav, crmNavGroups as navGroups } from "@/lib/crm/nav";
 import { takeOpenRequest } from "@/lib/crm/types";
 import { computePulse, overallPulse, healthStyle } from "@/lib/crm/pulse";
-import { ownerSignOut, useAccounts, useOwnerSession } from "@/lib/accounts";
+import { useSession } from "@/lib/supabase/session";
 import { Avatar } from "./ui";
 import Onboarding from "./Onboarding";
 import OwnerLock from "./OwnerLock";
@@ -64,10 +64,10 @@ function PulseChip() {
 
 function UserMenu() {
   const { state, actions } = useCrm();
-  const { owner: account } = useAccounts();
+  const session = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const owner = account ?? state.team[0];
+  const owner = session.profile ?? state.team[0];
 
   useEffect(() => {
     if (!open) return;
@@ -92,10 +92,10 @@ function UserMenu() {
         />
       </button>
       {open && (
-        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-edge bg-surface-2/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
+        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-edge bg-surface-2 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
           <div className="border-b border-edge px-3 py-2.5">
             <p className="truncate text-sm font-medium">{owner.name}</p>
-            <p className="truncate text-xs text-ink-faint">{owner.email}</p>
+            <p className="truncate text-xs text-ink-dim">{owner.email}</p>
           </div>
           <Link
             href="/crm/settings"
@@ -121,11 +121,11 @@ function UserMenu() {
             <RotateCcw className="size-4" />
             Restore sample data
           </button>
-          {account && (
+          {session.user && (
             <button
               onClick={() => {
                 setOpen(false);
-                ownerSignOut();
+                void session.signOut();
               }}
               className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-ink-dim transition hover:bg-accent-dim hover:text-ink"
             >
@@ -150,9 +150,9 @@ const subscribeNoop = () => () => {};
 
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { state, actions } = useCrm();
-  const { owner } = useAccounts();
-  const ownerSignedIn = useOwnerSession();
+  const router = useRouter();
+  const session = useSession();
+  const { state, actions, loading, mode } = useCrm();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   // Consume a record-open request stashed by the site's palette before it
@@ -162,6 +162,17 @@ export default function Shell({ children }: { children: ReactNode }) {
     if (request) actions.requestOpen(request);
   }, [actions]);
 
+  // A client-only account has no business in the CRM — their desktop is the
+  // portal at the site root.
+  const clientOnly =
+    session.ready &&
+    mode === "db" &&
+    !session.membership &&
+    Boolean(session.clientAccess);
+  useEffect(() => {
+    if (clientOnly) router.replace("/");
+  }, [clientOnly, router]);
+
   // The store seeds itself with Date.now()-relative data, so the server and
   // client trees can disagree — render the app only after hydration.
   const mounted = useSyncExternalStore(
@@ -170,7 +181,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     () => false,
   );
 
-  if (!mounted) {
+  if (!mounted || !session.ready || loading || clientOnly) {
     return (
       <div className="flex h-dvh items-center justify-center bg-desktop">
         <div className="flex items-center gap-3 opacity-60">
@@ -183,27 +194,25 @@ export default function Shell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!state.onboarded) return <Onboarding />;
+  // Signed out (and not a ?noonboard demo session) — the door is auth.
+  if (mode === "demo" && !session.demo && !session.user) return <OwnerLock />;
 
-  // Owner gate: ephemeral (?noonboard) sessions read no credentials, so
-  // `owner` is null there and tests/screenshots pass straight through.
-  // Workspaces onboarded before accounts existed stay open too — Settings
-  // offers "secure this workspace" to add the lock.
-  if (owner && !ownerSignedIn) return <OwnerLock />;
+  // Signed in but no workspace yet — create one.
+  if (!state.onboarded) return <Onboarding />;
 
   const inPortal = pathname.startsWith("/crm/portal");
 
   return (
-    <div className="crm-shell flex h-dvh bg-desktop">
+    <div className="crm-shell flex h-dvh bg-desktop text-[15px] leading-relaxed">
       {!inPortal && (
-        <aside className="crm-sidebar hidden w-60 shrink-0 flex-col border-r border-edge bg-surface/60 md:flex">
+        <aside className="crm-sidebar hidden w-60 shrink-0 flex-col border-r border-edge bg-surface/90 md:flex">
           <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
             <LogoMark className="h-6 w-auto" />
             <div className="min-w-0">
               <p className="text-[15px] font-semibold leading-tight tracking-tight">
                 Franko CRM
               </p>
-              <p className="truncate text-xs text-ink-faint">
+              <p className="truncate text-xs text-ink-dim">
                 {state.workspace.name}
               </p>
             </div>
@@ -212,7 +221,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             {navGroups.map((group) => (
               <div key={group.label ?? "top"}>
                 {group.label && (
-                  <p className="px-3 pb-1 pt-1 text-[10px] font-medium uppercase tracking-widest text-ink-faint">
+                  <p className="px-3 pb-1 pt-1 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
                     {group.label}
                   </p>
                 )}
@@ -224,7 +233,7 @@ export default function Shell({ children }: { children: ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition ${
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                           active
                             ? "bg-accent-dim font-medium text-ink"
                             : "text-ink-dim hover:bg-surface-2 hover:text-ink"
@@ -270,7 +279,7 @@ export default function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {!inPortal && (
-          <header className="crm-topbar flex h-14 shrink-0 items-center gap-3 border-b border-edge bg-surface/60 px-4 md:px-6">
+          <header className="crm-topbar flex h-14 shrink-0 items-center gap-3 border-b border-edge bg-surface/90 px-4 md:px-6">
             <div className="flex items-center gap-2.5 md:hidden">
               <LogoMark className="h-5 w-auto" />
               <span className="text-sm font-semibold tracking-tight">
@@ -312,7 +321,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         </main>
         {/* Mobile bottom nav */}
         {!inPortal && (
-          <nav className="flex shrink-0 items-center justify-around border-t border-edge bg-surface/80 px-2 py-1.5 backdrop-blur-md md:hidden">
+          <nav className="flex shrink-0 items-center justify-around border-t border-edge bg-surface/95 px-2 py-1.5 backdrop-blur-md md:hidden">
             {mobileNav.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;
@@ -320,8 +329,8 @@ export default function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-1 text-[10px] ${
-                    active ? "text-accent" : "text-ink-faint"
+                  className={`flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-1 text-[11px] ${
+                    active ? "text-accent" : "text-ink-dim"
                   }`}
                 >
                   <Icon className="size-5" strokeWidth={1.75} />

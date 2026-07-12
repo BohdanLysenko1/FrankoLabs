@@ -28,13 +28,13 @@ export default function GuidesPage() {
           </div>
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Guides</h2>
-            <p className="mt-0.5 text-[15px] text-ink-dim">
+            <p className="mt-0.5 text-base text-ink-dim">
               Playbooks &amp; how-tos — the same advice we give clients.
             </p>
           </div>
         </div>
 
-        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
           {guides.map((g) => (
             <Link
               key={g.slug}
@@ -47,7 +47,7 @@ export default function GuidesPage() {
                     {g.title}
                   </h3>
                 </div>
-                <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-ink-dim">
+                <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
                   {g.description}
                 </p>
                 <div className="mt-3 flex items-center gap-3 text-xs text-ink-faint">

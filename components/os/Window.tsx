@@ -450,7 +450,7 @@ export default function Window({ title, path, size = "lg", children }: WindowPro
           </div>
         ) : (
           <div
-            className="relative flex h-12 shrink-0 cursor-grab select-none items-center gap-3 border-b border-edge bg-surface-2/60 px-4 active:cursor-grabbing"
+            className="relative flex h-12 shrink-0 cursor-grab select-none items-center gap-3 border-b border-edge bg-surface-2/90 px-4 active:cursor-grabbing"
             onPointerDown={startDrag}
             onDoubleClick={toggleMaximize}
           >
@@ -484,7 +484,7 @@ export default function Window({ title, path, size = "lg", children }: WindowPro
               <span className="flex items-center gap-2 text-[15px] font-medium">
                 {title}
                 {path && (
-                  <span className="hidden font-mono text-xs text-ink-faint sm:inline">
+                  <span className="hidden font-mono text-xs text-ink-dim sm:inline">
                     {path}
                   </span>
                 )}
@@ -493,7 +493,7 @@ export default function Window({ title, path, size = "lg", children }: WindowPro
           </div>
         )}
 
-        <div className="os-scroll flex-1 overflow-y-auto pb-32 md:pb-0">
+        <div className="os-scroll flex-1 overflow-y-auto pb-32 text-[15px] leading-relaxed md:pb-0">
           {children}
         </div>
 

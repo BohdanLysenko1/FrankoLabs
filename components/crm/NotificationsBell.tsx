@@ -223,7 +223,7 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
+        <div className="os-menu absolute right-0 top-full z-50 mt-2 w-88 max-w-[90vw] rounded-xl border border-edge bg-surface-2 shadow-2xl shadow-black/60 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-edge px-4 py-3">
             <p className="text-sm font-medium">Notifications</p>
             {unread.length > 0 && (
@@ -256,9 +256,9 @@ export default function NotificationsBell() {
                   />
                   <span className="min-w-0">
                     <span className="flex items-baseline gap-2">
-                      <span className="text-xs font-medium">{n.title}</span>
+                      <span className="text-sm font-medium">{n.title}</span>
                       {n.at && (
-                        <span className="text-[10px] text-ink-faint">
+                        <span className="text-[11px] text-ink-dim">
                           {relTime(n.at, now)}
                         </span>
                       )}
@@ -274,7 +274,7 @@ export default function NotificationsBell() {
               );
             })}
             {items.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-ink-faint">
+              <p className="px-4 py-8 text-center text-sm text-ink-dim">
                 All caught up — nothing needs attention.
               </p>
             )}

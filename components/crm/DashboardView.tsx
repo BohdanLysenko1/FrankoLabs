@@ -59,10 +59,10 @@ function StatTile({
   return (
     <Link
       href={href}
-      className="group rounded-2xl border border-edge bg-surface/60 p-4 transition hover:border-edge-strong hover:bg-surface-2/60"
+      className="group rounded-2xl border border-edge bg-surface/90 p-4 transition hover:border-edge-strong hover:bg-surface-2/60"
     >
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           {label}
         </p>
         <Icon
@@ -482,7 +482,7 @@ export default function DashboardView() {
                     height: `${Math.max(r.total > 0 ? 6 : 2, (r.total / maxRevenue) * 82)}%`,
                   }}
                 />
-                <p className="mt-1.5 text-center text-[10px] text-ink-faint">
+                <p className="mt-1.5 text-center text-[11px] text-ink-dim">
                   {r.label}
                 </p>
               </div>
@@ -505,7 +505,7 @@ export default function DashboardView() {
           </div>
           <div className="mt-4 space-y-2">
             {m.clients.map((c) => {
-              const site = siteHealthFor(c);
+              const site = siteHealthFor(state, c);
               return (
                 <Link
                   key={c.id}

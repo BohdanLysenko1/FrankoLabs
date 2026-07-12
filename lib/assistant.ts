@@ -71,7 +71,7 @@ function clientAnswer(state: CrmState, company: Company, input: string): string 
   }
 
   if (matches(q, "website", "site", "uptime", "online", "down", "ssl", "domain")) {
-    const site = siteHealthFor(company);
+    const site = siteHealthFor(state, company);
     return `${company.domain} is ${site.status === "online" ? "online" : "in a maintenance window"} — ${site.uptime90d} uptime over the last 90 days, ${site.visits30d.toLocaleString("en-US")} visits in the last 30. SSL renews itself in ${site.sslDaysLeft} days. Details live in the Website and Hosting tools.`;
   }
 

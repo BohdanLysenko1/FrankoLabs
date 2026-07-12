@@ -62,7 +62,7 @@ export default async function ProductModulePage({ params }: Props) {
                 {s.label}
               </span>
             </div>
-            <p className="mt-1.5 max-w-md text-[15px] leading-relaxed text-ink-dim">
+            <p className="mt-1.5 max-w-md text-base leading-relaxed text-ink-dim">
               {mod.tagline}
             </p>
           </div>
@@ -91,7 +91,7 @@ export default async function ProductModulePage({ params }: Props) {
         </div>
 
         {/* Overview */}
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Overview
         </p>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">
@@ -99,14 +99,14 @@ export default async function ProductModulePage({ params }: Props) {
         </p>
 
         {/* Features */}
-        <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           What it does
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {mod.features.map((f) => (
             <div
               key={f.title}
-              className="rounded-xl border border-edge bg-surface-2/40 p-5"
+              className="rounded-xl border border-edge bg-surface-2/65 p-5"
             >
               <div className="flex items-center gap-2.5">
                 <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-dim">
@@ -114,7 +114,7 @@ export default async function ProductModulePage({ params }: Props) {
                 </span>
                 <h3 className="text-[15px] font-medium">{f.title}</h3>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+              <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">
                 {f.description}
               </p>
             </div>
@@ -124,7 +124,7 @@ export default async function ProductModulePage({ params }: Props) {
         {/* Works with */}
         {related.length > 0 && (
           <>
-            <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+            <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
               Works with
             </p>
             <div className="mt-4 flex flex-wrap gap-2.5">
@@ -132,7 +132,7 @@ export default async function ProductModulePage({ params }: Props) {
                 <Link
                   key={r.slug}
                   href={`/products/${r.slug}`}
-                  className="group flex items-center gap-2 rounded-xl border border-edge bg-surface-2/40 px-3.5 py-2.5 transition hover:border-edge-strong hover:bg-surface-2/70"
+                  className="group flex items-center gap-2 rounded-xl border border-edge bg-surface-2/65 px-3.5 py-2.5 transition hover:border-edge-strong hover:bg-surface-2/70"
                 >
                   <r.icon
                     className="size-4 text-ink-dim transition group-hover:text-accent"
@@ -151,7 +151,7 @@ export default async function ProductModulePage({ params }: Props) {
             <p className="text-lg font-medium">
               Want {mod.name} running your business?
             </p>
-            <p className="mt-1 text-[15px] text-ink-dim">
+            <p className="mt-1 text-base text-ink-dim">
               {mod.liveUrl
                 ? `${mod.name} is live in early access — open the app and try it with sample data, no signup needed.`
                 : "Franko OS is in early access — join the waitlist and we'll reach out as modules go live."}

@@ -70,7 +70,7 @@ function MarketingDashboard() {
           transition={{ duration: 0.4 }}
           className="my-auto max-w-3xl pb-24 text-center sm:[@media(min-height:740px)]:pb-6"
         >
-          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-edge bg-surface/60 px-4 py-1.5 text-xs font-medium tracking-wide text-ink-dim backdrop-blur">
+          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-edge bg-surface/90 px-4 py-1.5 text-xs font-medium tracking-wide text-ink-dim backdrop-blur">
             <span className="status-dot size-2 rounded-full bg-accent" />
             Franko OS — system online
           </p>
@@ -134,7 +134,7 @@ function MarketingDashboard() {
         className="flex min-h-full flex-col items-center justify-center px-4 pb-32 pt-8 md:snap-start"
       >
         <div className="mb-6 text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
             Live preview
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">
@@ -143,7 +143,7 @@ function MarketingDashboard() {
         </div>
 
         <div className="grid w-full max-w-5xl gap-5 md:grid-cols-[1.2fr_1fr]">
-          <Widget name="Your business modules" delay={0.1}>
+          <Widget name="Your business modules" constraintsRef={dashboardRef} delay={0.1}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {modules.map((m) => (
                 <Link
@@ -170,12 +170,12 @@ function MarketingDashboard() {
           </Widget>
 
           <div className="flex flex-col gap-5">
-            <Widget name="Recent activity" delay={0.2}>
+            <Widget name="Recent activity" constraintsRef={dashboardRef} delay={0.2}>
               <ul className="space-y-2.5">
                 {activity.map((line) => (
                   <li
                     key={line}
-                    className="flex items-center gap-2.5 text-sm leading-relaxed text-ink-dim"
+                    className="flex items-center gap-2.5 text-[15px] leading-relaxed text-ink-dim"
                   >
                     <span className="size-1.5 shrink-0 rounded-full bg-accent" />
                     {line}
@@ -184,7 +184,7 @@ function MarketingDashboard() {
               </ul>
             </Widget>
 
-            <Widget name="At a glance" delay={0.3}>
+            <Widget name="At a glance" constraintsRef={dashboardRef} delay={0.3}>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="text-2xl font-semibold tabular-nums text-accent">
@@ -204,7 +204,12 @@ function MarketingDashboard() {
             </Widget>
           </div>
 
-          <Widget name="Quick actions" delay={0.4} className="md:col-span-2">
+          <Widget
+            name="Quick actions"
+            constraintsRef={dashboardRef}
+            delay={0.4}
+            className="md:col-span-2"
+          >
             <div className="grid gap-3 sm:grid-cols-4">
               {quickActions.map((a) => (
                 <Link

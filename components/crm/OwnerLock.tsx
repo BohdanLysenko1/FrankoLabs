@@ -4,78 +4,107 @@ import { useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
-  Check,
-  Copy,
+  Eye,
   KeyRound,
   LockKeyhole,
-  ShieldCheck,
+  Mail,
+  MailCheck,
+  UserRound,
 } from "lucide-react";
 import LogoMark from "@/components/os/LogoMark";
-import {
-  openOwnerSession,
-  ownerSignIn,
-  resetOwnerWithRecovery,
-  useAccounts,
-} from "@/lib/accounts";
+import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/supabase/session";
 import { playSound } from "@/lib/sound";
 import { inputCls } from "./ui";
 
 /**
- * The /crm sign-in screen, shown when an owner account exists but no session
- * does. Recovery flow: the one-time code resets the password and mints a
- * fresh code (the old one is spent).
+ * The /crm door when nobody is signed in: sign in to an existing workspace,
+ * create an account (workspace setup follows after the email confirm), or
+ * request a password reset. The demo link opens a seeded, throwaway session.
  */
 export default function OwnerLock() {
-  const { owner } = useAccounts();
-  const [mode, setMode] = useState<"signin" | "recovery">("signin");
+  const session = useSession();
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [newCode, setNewCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  if (!owner) return null;
-
-  const submitSignIn = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const ok = await ownerSignIn(password);
-    setBusy(false);
-    if (ok) {
-      playSound("open");
-    } else {
-      setError("That password isn't right.");
-      setPassword("");
-    }
+  const switchMode = (next: typeof mode) => {
+    setMode(next);
+    setError(null);
+    setNotice(null);
   };
 
-  const submitRecovery = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 8) {
-      setError("New password needs at least 8 characters.");
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const supabase = createClient();
+
+    if (mode === "signin") {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      setBusy(false);
+      if (err) {
+        setError("That email and password don't match.");
+        setPassword("");
+        return;
+      }
+      playSound("open");
+      await session.refresh();
       return;
     }
-    setBusy(true);
-    const minted = await resetOwnerWithRecovery(code, newPassword);
-    setBusy(false);
-    if (minted) {
-      setNewCode(minted);
-      setError(null);
-    } else {
-      setError("That recovery code doesn't match.");
-    }
-  };
 
-  const copyNewCode = async () => {
-    if (!newCode) return;
-    try {
-      await navigator.clipboard.writeText(newCode);
-      setCopied(true);
-    } catch {
-      window.prompt("Recovery code:", newCode);
+    if (mode === "signup") {
+      if (!name.trim()) {
+        setBusy(false);
+        setError("Add your name.");
+        return;
+      }
+      if (password.length < 8) {
+        setBusy(false);
+        setError("Password needs at least 8 characters.");
+        return;
+      }
+      const { data, error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name.trim() },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/crm`,
+        },
+      });
+      setBusy(false);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      if (data.session) {
+        // Email confirmation disabled — straight through to onboarding.
+        playSound("open");
+        await session.refresh();
+      } else {
+        setNotice(
+          `Almost there — we sent a confirmation link to ${email}. Open it and you'll land back here to set up your workspace.`,
+        );
+      }
+      return;
     }
+
+    // Password reset.
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/set-password`,
+    });
+    setBusy(false);
+    if (err) setError(err.message);
+    else setNotice("Reset link sent — check your inbox.");
   };
 
   return (
@@ -83,160 +112,142 @@ export default function OwnerLock() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-edge bg-surface p-8 shadow-2xl shadow-black/50">
           <AnimatePresence mode="wait">
-            {newCode ? (
-              // Recovery succeeded — the session is open, but the new code
-              // must be saved before continuing.
-              <motion.div
-                key="newcode"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <ShieldCheck className="size-9 text-accent" />
-                <h1 className="mt-4 text-xl font-semibold tracking-tight">
-                  Password reset — here&apos;s your new recovery code
-                </h1>
-                <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-                  The old code is spent. Save this one somewhere safe; it&apos;s
-                  shown once.
-                </p>
-                <button
-                  onClick={copyNewCode}
-                  className="mt-4 flex w-full items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent-dim/50 px-4 py-3.5 text-left font-mono text-base tracking-wider transition hover:border-accent/70"
-                >
-                  {newCode}
-                  {copied ? (
-                    <Check className="size-4 shrink-0 text-accent" />
-                  ) : (
-                    <Copy className="size-4 shrink-0 text-ink-dim" />
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    playSound("open");
-                    openOwnerSession();
-                  }}
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 text-sm font-medium text-black transition hover:brightness-110"
-                >
-                  I&apos;ve saved it — open my workspace
-                  <ArrowRight className="size-4" />
-                </button>
-              </motion.div>
-            ) : mode === "signin" ? (
-              <motion.form
-                key="signin"
-                onSubmit={submitSignIn}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-              >
-                <LogoMark className="h-8 w-auto" />
-                <h1 className="mt-5 text-xl font-semibold tracking-tight">
-                  Welcome back, {owner.name.split(" ")[0]}
-                </h1>
-                <p className="mt-1 truncate text-sm text-ink-dim">
-                  {owner.email}
-                </p>
-                <div className="relative mt-5">
-                  <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+            <motion.form
+              key={mode}
+              onSubmit={submit}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <LogoMark className="h-8 w-auto" />
+              <h1 className="mt-5 text-xl font-semibold tracking-tight">
+                {mode === "signin"
+                  ? "Sign in to your workspace"
+                  : mode === "signup"
+                    ? "Create your workspace"
+                    : "Reset your password"}
+              </h1>
+              <p className="mt-1 text-sm text-ink-dim">
+                {mode === "signin"
+                  ? "Your CRM, synced and live from anywhere."
+                  : mode === "signup"
+                    ? "One account runs the whole OS — CRM, portal, billing."
+                    : "We'll email you a link to pick a new password."}
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {mode === "signup" && (
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+                    <input
+                      autoFocus
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="Your name"
+                      className={`${inputCls} pl-10`}
+                    />
+                  </div>
+                )}
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
                   <input
-                    type="password"
-                    autoFocus
-                    value={password}
+                    type="email"
+                    autoFocus={mode !== "signup"}
+                    value={email}
                     onChange={(e) => {
-                      setPassword(e.target.value);
+                      setEmail(e.target.value);
                       setError(null);
                     }}
-                    placeholder="Password"
-                    className="w-full rounded-xl border border-edge bg-surface-2 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-accent/50"
+                    placeholder="Email"
+                    className={`${inputCls} pl-10`}
                   />
                 </div>
-                {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:opacity-60"
-                >
-                  Unlock workspace
-                  <ArrowRight className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("recovery");
-                    setError(null);
-                  }}
-                  className="mt-3 w-full text-center text-xs text-ink-faint transition hover:text-ink"
-                >
-                  Forgot your password? Use your recovery code
-                </button>
-              </motion.form>
-            ) : (
-              <motion.form
-                key="recovery"
-                onSubmit={submitRecovery}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-              >
-                <KeyRound className="size-8 text-accent" />
-                <h1 className="mt-4 text-xl font-semibold tracking-tight">
-                  Reset with your recovery code
-                </h1>
-                <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-                  Enter the code you saved when the workspace was created (or
-                  from your latest backup file), then pick a new password.
+                {mode !== "reset" && (
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder={
+                        mode === "signup"
+                          ? "Create a password (8+ characters)"
+                          : "Password"
+                      }
+                      className={`${inputCls} pl-10`}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
+              {notice && (
+                <p className="mt-2.5 flex items-start gap-2 text-sm leading-relaxed text-accent">
+                  <MailCheck className="mt-0.5 size-4 shrink-0" />
+                  {notice}
                 </p>
-                <div className="mt-5 space-y-3">
-                  <input
-                    autoFocus
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="FRNK-XXXX-XXXX-XXXX"
-                    className={`${inputCls} font-mono tracking-wider`}
-                  />
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="New password (8+ characters)"
-                    className={inputCls}
-                  />
-                </div>
-                {error && <p className="mt-2.5 text-sm text-red-400">{error}</p>}
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:opacity-60"
-                >
-                  Reset password
-                  <ArrowRight className="size-4" />
-                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:opacity-60"
+              >
+                {mode === "signin"
+                  ? "Unlock workspace"
+                  : mode === "signup"
+                    ? "Create account"
+                    : "Email me a reset link"}
+                <ArrowRight className="size-4" />
+              </button>
+
+              {mode === "signin" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => switchMode("signup")}
+                    className="mt-3 w-full text-center text-xs text-ink-dim transition hover:text-ink"
+                  >
+                    New here? Create your workspace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode("reset")}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 text-center text-xs text-ink-faint transition hover:text-ink"
+                  >
+                    <KeyRound className="size-3" />
+                    Forgot your password?
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode("signin");
-                    setError(null);
-                  }}
+                  onClick={() => switchMode("signin")}
                   className="mt-3 w-full text-center text-xs text-ink-faint transition hover:text-ink"
                 >
                   Back to sign in
                 </button>
-              </motion.form>
-            )}
+              )}
+            </motion.form>
           </AnimatePresence>
         </div>
-        <p className="mt-4 text-center text-xs text-ink-faint">
-          Workspace data stays on this browser — the lock keeps passers-by
-          out, not attackers.
+        <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-ink-faint">
+          <Eye className="size-3" />
+          Just looking?{" "}
+          {/* Full page load on purpose — the demo flag is read at boot. */}
+          <a
+            href="/crm?noonboard=1"
+            className="text-ink-dim underline transition hover:text-ink"
+          >
+            Explore the demo workspace
+          </a>
         </p>
       </div>
     </div>

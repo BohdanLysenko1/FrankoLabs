@@ -66,7 +66,7 @@ export default function PricingPage() {
   return (
     <Window title="Pricing" path="~/pricing" size="xl">
       <div className="p-6 md:p-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Simple monthly plans
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">
@@ -85,7 +85,7 @@ export default function PricingPage() {
               className={`relative flex flex-col rounded-2xl border p-6 ${
                 t.highlighted
                   ? "border-accent/50 bg-accent-dim/40"
-                  : "border-edge bg-surface-2/40"
+                  : "border-edge bg-surface-2/65"
               }`}
             >
               {t.highlighted && (
@@ -101,14 +101,14 @@ export default function PricingPage() {
                 </span>
                 <span className="text-sm text-ink-dim">{t.period}</span>
               </p>
-              <p className="mt-3 text-[15px] leading-relaxed text-ink-dim">
+              <p className="mt-3 text-base leading-relaxed text-ink-dim">
                 {t.blurb}
               </p>
               <ul className="mt-5 space-y-2.5">
                 {t.features.map((f) => (
                   <li
                     key={f}
-                    className="flex items-start gap-2.5 text-[15px] text-ink-dim"
+                    className="flex items-start gap-2.5 text-base text-ink-dim"
                   >
                     <Check
                       className="mt-0.5 size-4.5 shrink-0 text-accent"
@@ -133,10 +133,10 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-surface-2/40 p-6">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-surface-2/65 p-6">
           <div>
             <p className="text-lg font-medium">Need something one-off?</p>
-            <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-ink-dim">
+            <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
               Custom websites, CRM setup, branding, ads or automation as
               standalone projects — tell us what you need and we&apos;ll quote
               it within two business days.

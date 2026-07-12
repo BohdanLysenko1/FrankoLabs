@@ -13,7 +13,7 @@ export default function ProjectsPage() {
   return (
     <Window title="Projects" path="~/projects" size="md">
       <div className="p-6 md:p-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Our work
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">
@@ -24,7 +24,7 @@ export default function ProjectsPage() {
           and what we learned building it.
         </p>
 
-        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
           <Link
             href="/projects/voyagr"
             className="group flex items-center gap-5 p-5 transition hover:bg-surface-2/70"
@@ -34,7 +34,7 @@ export default function ProjectsPage() {
             </div>
             <div className="min-w-0">
               <h3 className="text-lg font-medium">Voyagr</h3>
-              <p className="mt-0.5 truncate text-[15px] text-ink-dim">
+              <p className="mt-0.5 truncate text-base text-ink-dim">
                 Independent product — proof of the Franko Labs engineering
                 pipeline
               </p>

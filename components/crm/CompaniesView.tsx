@@ -55,7 +55,7 @@ function EditCompanyForm({
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-edge bg-surface-2/40 p-4">
+    <div className="space-y-4 rounded-xl border border-edge bg-surface-2/65 p-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Name">
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
@@ -176,7 +176,7 @@ function CompanyDrawer({
       )}
 
       {company.notes && (
-        <p className="mt-4 rounded-xl border border-edge bg-surface-2/40 p-4 text-sm leading-relaxed text-ink-dim">
+        <p className="mt-4 rounded-xl border border-edge bg-surface-2/65 p-4 text-base leading-relaxed text-ink-dim">
           {company.notes}
         </p>
       )}
@@ -366,7 +366,7 @@ export default function CompaniesView() {
               <button
                 key={c.id}
                 onClick={() => setLocalOpenId(c.id)}
-                className="rounded-2xl border border-edge bg-surface-2/40 p-5 text-left transition hover:border-edge-strong hover:bg-surface-2/70"
+                className="rounded-2xl border border-edge bg-surface-2/65 p-5 text-left transition hover:border-edge-strong hover:bg-surface-2/70"
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="flex size-10 items-center justify-center rounded-xl border border-edge bg-surface-2 text-ink-dim">

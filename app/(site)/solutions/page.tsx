@@ -108,7 +108,7 @@ export default function SolutionsPage() {
   return (
     <Window title="Solutions" path="~/solutions" size="lg">
       <div className="p-6 md:p-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
           Our services
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">
@@ -120,7 +120,7 @@ export default function SolutionsPage() {
           reporting.
         </p>
 
-        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+        <div className="mt-8 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
           {services.map((s) => (
             <div
               key={s.id}
@@ -131,7 +131,7 @@ export default function SolutionsPage() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-lg font-medium">{s.name}</h3>
-                <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-ink-dim">
+                <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
                   {s.description}
                 </p>
               </div>
@@ -146,7 +146,7 @@ export default function SolutionsPage() {
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-accent-dim/50 p-6">
           <div>
             <p className="text-lg font-medium">Not sure where to start?</p>
-            <p className="mt-1 text-[15px] text-ink-dim">
+            <p className="mt-1 text-base text-ink-dim">
               Get a free audit of your current setup — we&apos;ll tell you what
               to fix first.
             </p>

@@ -16,7 +16,7 @@ export default function AssistantView() {
           </p>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-edge bg-surface/60">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-edge bg-surface/90">
         <AssistantChat
           scope={{ kind: "agency" }}
           greeting="Morning. I can see the whole workspace — pipeline, invoices, contracts, tickets. Ask me anything, or hit a suggestion below."

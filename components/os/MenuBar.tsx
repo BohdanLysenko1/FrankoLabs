@@ -18,6 +18,7 @@ import { toolsFor } from "@/lib/portal/portal";
 import { useCrm } from "@/lib/crm/store";
 import PortalBell from "@/components/portal/PortalBell";
 import type { Company, CrmState } from "@/lib/crm/types";
+import { useClock } from "@/lib/clock";
 import { playSound, setSoundsEnabled, soundsEnabled } from "@/lib/sound";
 import ThemeToggle from "./ThemeToggle";
 
@@ -81,22 +82,7 @@ function clientMenus(state: CrmState, company: Company): Menu[] {
 }
 
 function Clock() {
-  const [time, setTime] = useState<string>("");
-
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      setTime(
-        `${String(now.getHours()).padStart(2, "0")}:${String(
-          now.getMinutes(),
-        ).padStart(2, "0")}`,
-      );
-    };
-    tick();
-    const id = setInterval(tick, 15_000);
-    return () => clearInterval(id);
-  }, []);
-
+  const time = useClock();
   return (
     <span className="whitespace-nowrap text-right font-mono text-sm tabular-nums text-ink-dim">
       {time}
@@ -108,7 +94,8 @@ function SoundToggle() {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
-    setOn(soundsEnabled());
+    const soundTimer = window.setTimeout(() => setOn(soundsEnabled()), 0);
+    return () => clearTimeout(soundTimer);
   }, []);
 
   return (
@@ -153,7 +140,7 @@ export default function MenuBar() {
   return (
     <header
       ref={barRef}
-      className="os-menubar relative z-40 flex h-12 shrink-0 items-center gap-1 border-b border-edge bg-surface/80 px-4 backdrop-blur-md"
+      className="os-menubar relative z-40 flex h-12 shrink-0 items-center gap-1 border-b border-edge bg-surface/95 px-4 backdrop-blur-md"
     >
       <div className="mr-3 flex items-center gap-2">
         <LogoMark className="h-5 w-auto" />
@@ -179,7 +166,7 @@ export default function MenuBar() {
               {menu.label}
             </button>
             {open === menu.label && (
-              <div className="os-menu absolute left-0 top-full mt-1 min-w-60 rounded-lg border border-edge bg-surface-2/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
+              <div className="os-menu absolute left-0 top-full mt-1 min-w-60 rounded-lg border border-edge bg-surface-2 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
                 {menu.items.map((item) => (
                   <button
                     key={item.label}
@@ -215,7 +202,7 @@ export default function MenuBar() {
                 aria-label="Sign out"
                 title="Sign out"
                 onClick={signOut}
-                className="rounded-full p-1 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink"
+                className="rounded-full p-1 text-ink-dim transition-colors hover:bg-surface-3 hover:text-ink"
               >
                 <LogOut className="size-3.5" />
               </button>

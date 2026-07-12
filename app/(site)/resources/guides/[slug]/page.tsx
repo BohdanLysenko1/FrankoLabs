@@ -61,7 +61,7 @@ export default async function GuidePage({ params }: Props) {
             <section key={s.heading}>
               <h3 className="text-lg font-medium">{s.heading}</h3>
               {s.body && (
-                <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-dim">
+                <p className="mt-2 max-w-2xl text-base leading-relaxed text-ink-dim">
                   {s.body}
                 </p>
               )}
@@ -72,7 +72,7 @@ export default async function GuidePage({ params }: Props) {
                       <span className="mt-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-accent-dim">
                         <Check className="size-2.5 text-accent" strokeWidth={2.5} />
                       </span>
-                      <span className="text-[15px] leading-relaxed text-ink-dim">
+                      <span className="text-base leading-relaxed text-ink-dim">
                         {b}
                       </span>
                     </li>
@@ -88,7 +88,7 @@ export default async function GuidePage({ params }: Props) {
             <p className="text-lg font-medium">
               Want this handled for you instead?
             </p>
-            <p className="mt-1 text-[15px] text-ink-dim">
+            <p className="mt-1 text-base text-ink-dim">
               Book a free consultation — we&apos;ll tell you what to fix first,
               pitch-free.
             </p>
@@ -104,7 +104,7 @@ export default async function GuidePage({ params }: Props) {
 
         {others.length > 0 && (
           <>
-            <p className="mt-10 text-xs font-medium uppercase tracking-widest text-ink-faint">
+            <p className="mt-10 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
               Keep reading
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -112,7 +112,7 @@ export default async function GuidePage({ params }: Props) {
                 <Link
                   key={g.slug}
                   href={`/resources/guides/${g.slug}`}
-                  className="group rounded-xl border border-edge bg-surface-2/40 p-5 transition hover:border-edge-strong hover:bg-surface-2/70"
+                  className="group rounded-xl border border-edge bg-surface-2/65 p-5 transition hover:border-edge-strong hover:bg-surface-2/70"
                 >
                   <p className="text-[15px] font-medium transition group-hover:text-accent">
                     {g.title}

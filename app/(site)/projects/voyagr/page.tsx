@@ -31,7 +31,7 @@ const timeline = [
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs font-medium uppercase tracking-widest text-ink-faint">
+    <h3 className="text-[11px] font-medium uppercase tracking-widest text-ink-dim">
       {children}
     </h3>
   );
@@ -73,7 +73,7 @@ export default function VoyagrPage() {
               {[1, 2].map((i) => (
                 <div
                   key={i}
-                  className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-edge-strong bg-surface-2/40 text-ink-faint"
+                  className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-edge-strong bg-surface-2/65 text-ink-faint"
                 >
                   <span className="flex items-center gap-2 text-sm">
                     <ImageIcon className="size-5" />
@@ -108,7 +108,7 @@ export default function VoyagrPage() {
 
           <section>
             <SectionHeading>timeline</SectionHeading>
-            <div className="mt-3 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/40">
+            <div className="mt-3 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
               {timeline.map((t, i) => (
                 <div key={t.phase} className="flex items-center gap-4 p-4">
                   <span className="font-mono text-sm text-ink-faint">

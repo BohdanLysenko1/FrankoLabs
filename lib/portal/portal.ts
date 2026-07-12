@@ -12,7 +12,14 @@ import {
   BookOpen,
   type LucideIcon,
 } from "lucide-react";
-import type { Company, CrmState } from "@/lib/crm/types";
+import type {
+  AnalyticsDay,
+  Company,
+  CrmState,
+  SiteHealth,
+  VaultEntry,
+} from "@/lib/crm/types";
+import { defaultSite, demoAnalytics, hashId } from "@/lib/crm/seed";
 
 /**
  * Client portal — domain model.
@@ -20,9 +27,9 @@ import type { Company, CrmState } from "@/lib/crm/types";
  * The portal is the client-facing surface of the same CRM store the agency
  * works in: projects come from deals, invoices/contracts/tickets are
  * first-class store records, updates come from client-visible activities.
- * Entitlements live in the store (editable from the CRM's Portal view) and
- * decide which tools a client sees. Site, domain, vault and analytics data
- * are deterministic demo fixtures until real integrations land.
+ * Sites, vault items and analytics live in the store too — seeded fixtures in
+ * demo mode, database rows when signed in. Entitlements (editable from the
+ * CRM's Portal view) decide which tools a client sees.
  */
 
 export type PortalToolId =
@@ -148,289 +155,20 @@ export function toolsFor(state: CrmState, company: Company): PortalTool[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Website, hosting & domain fixtures                                  */
+/* Managed site, vault & analytics — store-backed                      */
 /* ------------------------------------------------------------------ */
 
-export type SitePage = {
-  path: string;
-  title: string;
-  views30d: number;
-  updatedDaysAgo: number;
-};
-
-export type Deploy = {
-  label: string;
-  daysAgo: number;
-  kind: "content" | "feature" | "fix";
-};
-
-export type Incident = {
-  title: string;
-  daysAgo: number;
-  durationMin: number;
-};
-
-export type DnsRecord = {
-  type: "A" | "CNAME" | "MX" | "TXT";
-  name: string;
-  value: string;
-  note: string;
-};
-
-export type SiteHealth = {
-  status: "online" | "maintenance";
-  uptime90d: string;
-  sslDaysLeft: number;
-  plan: string;
-  region: string;
-  lastDeployDaysAgo: number;
-  visits30d: number;
-  /** Lighthouse-style scores, 0–100. */
-  perf: { performance: number; accessibility: number; seo: number };
-  pages: SitePage[];
-  deploys: Deploy[];
-  /** Daily snapshots — days ago, newest first. */
-  backups: { daysAgo: number; size: string }[];
-  incidents: Incident[];
-  usage: {
-    bandwidthGb: number;
-    bandwidthLimitGb: number;
-    storageGb: number;
-    storageLimitGb: number;
-  };
-  registrar: string;
-  domainRenewsInDays: number;
-  dns: DnsRecord[];
-};
-
-function defaultSite(company: Company): SiteHealth {
-  return {
-    status: "online",
-    uptime90d: "99.95%",
-    sslDaysLeft: 60,
-    plan: "Managed hosting",
-    region: "us-east",
-    lastDeployDaysAgo: 5,
-    visits30d: 3_100,
-    perf: { performance: 94, accessibility: 97, seo: 96 },
-    pages: [
-      { path: "/", title: "Home", views30d: 1_900, updatedDaysAgo: 5 },
-      { path: "/about", title: "About", views30d: 640, updatedDaysAgo: 21 },
-      { path: "/contact", title: "Contact", views30d: 410, updatedDaysAgo: 21 },
-    ],
-    deploys: [
-      { label: "Content refresh", daysAgo: 5, kind: "content" },
-      { label: "Initial launch", daysAgo: 40, kind: "feature" },
-    ],
-    backups: [
-      { daysAgo: 0, size: "84 MB" },
-      { daysAgo: 1, size: "84 MB" },
-      { daysAgo: 2, size: "83 MB" },
-    ],
-    incidents: [],
-    usage: {
-      bandwidthGb: 4,
-      bandwidthLimitGb: 100,
-      storageGb: 1.2,
-      storageLimitGb: 10,
-    },
-    registrar: "Franko Labs (via Cloudflare)",
-    domainRenewsInDays: 200,
-    dns: [
-      { type: "A", name: "@", value: "76.76.21.21", note: "Points your domain at the site" },
-      { type: "CNAME", name: "www", value: `${company.domain}.`, note: "www works too" },
-      { type: "MX", name: "@", value: "route.mx.cloudflare.net", note: "Delivers your email" },
-    ],
-  };
+export function siteHealthFor(state: CrmState, company: Company): SiteHealth {
+  return state.sites[company.id] ?? defaultSite(company);
 }
 
-const SEED_SITES: Record<string, Partial<SiteHealth>> = {
-  "co-voyagr": {
-    status: "online",
-    uptime90d: "99.98%",
-    sslDaysLeft: 71,
-    plan: "Scale hosting",
-    region: "us-east",
-    lastDeployDaysAgo: 2,
-    visits30d: 48_200,
-    perf: { performance: 97, accessibility: 98, seo: 95 },
-    pages: [
-      { path: "/", title: "Home", views30d: 21_400, updatedDaysAgo: 2 },
-      { path: "/destinations", title: "Destinations", views30d: 11_800, updatedDaysAgo: 9 },
-      { path: "/booking", title: "Book a trip", views30d: 8_600, updatedDaysAgo: 2 },
-      { path: "/stories", title: "Traveler stories", views30d: 3_900, updatedDaysAgo: 16 },
-      { path: "/about", title: "About Voyagr", views30d: 2_500, updatedDaysAgo: 30 },
-    ],
-    deploys: [
-      { label: "Booking flow copy + seasonal banner", daysAgo: 2, kind: "content" },
-      { label: "Itinerary preview cards", daysAgo: 9, kind: "feature" },
-      { label: "Safari date-picker fix", daysAgo: 14, kind: "fix" },
-      { label: "Destination pages batch 3", daysAgo: 23, kind: "content" },
-    ],
-    backups: [
-      { daysAgo: 0, size: "412 MB" },
-      { daysAgo: 1, size: "411 MB" },
-      { daysAgo: 2, size: "409 MB" },
-      { daysAgo: 3, size: "402 MB" },
-    ],
-    incidents: [
-      { title: "Elevated response times during traffic spike", daysAgo: 26, durationMin: 14 },
-    ],
-    usage: {
-      bandwidthGb: 132,
-      bandwidthLimitGb: 500,
-      storageGb: 6.8,
-      storageLimitGb: 50,
-    },
-    domainRenewsInDays: 244,
-    dns: [
-      { type: "A", name: "@", value: "76.76.21.21", note: "Points voyagr.app at the site" },
-      { type: "CNAME", name: "www", value: "voyagr.app.", note: "www works too" },
-      { type: "CNAME", name: "book", value: "booking.voyagr.app.", note: "Booking subdomain" },
-      { type: "MX", name: "@", value: "route.mx.cloudflare.net", note: "Delivers your email" },
-      { type: "TXT", name: "@", value: "v=spf1 include:_spf.google.com ~all", note: "Email anti-spoofing" },
-    ],
-  },
-  "co-northbeam": {
-    status: "online",
-    uptime90d: "100%",
-    sslDaysLeft: 54,
-    plan: "WaaS subscription",
-    region: "us-west",
-    lastDeployDaysAgo: 8,
-    visits30d: 6_400,
-    perf: { performance: 96, accessibility: 99, seo: 98 },
-    pages: [
-      { path: "/", title: "Home", views30d: 2_700, updatedDaysAgo: 8 },
-      { path: "/new-patients", title: "New patients", views30d: 1_450, updatedDaysAgo: 8 },
-      { path: "/locations", title: "Locations & hours", views30d: 1_100, updatedDaysAgo: 8 },
-      { path: "/services/implants", title: "Dental implants", views30d: 620, updatedDaysAgo: 34 },
-    ],
-    deploys: [
-      { label: "Holiday hours banner removed", daysAgo: 8, kind: "content" },
-      { label: "New-patient form shortened", daysAgo: 19, kind: "feature" },
-      { label: "Location pages schema markup", daysAgo: 33, kind: "fix" },
-    ],
-    backups: [
-      { daysAgo: 0, size: "96 MB" },
-      { daysAgo: 1, size: "96 MB" },
-      { daysAgo: 2, size: "96 MB" },
-    ],
-    incidents: [],
-    usage: {
-      bandwidthGb: 11,
-      bandwidthLimitGb: 100,
-      storageGb: 1.9,
-      storageLimitGb: 10,
-    },
-    domainRenewsInDays: 121,
-  },
-  "co-bloom": {
-    status: "online",
-    uptime90d: "99.99%",
-    sslDaysLeft: 80,
-    plan: "WaaS subscription",
-    region: "us-east",
-    lastDeployDaysAgo: 6,
-    visits30d: 2_150,
-    perf: { performance: 98, accessibility: 96, seo: 94 },
-    pages: [
-      { path: "/", title: "Home", views30d: 1_150, updatedDaysAgo: 6 },
-      { path: "/shop", title: "Shop arrangements", views30d: 540, updatedDaysAgo: 6 },
-      { path: "/weddings", title: "Weddings & events", views30d: 260, updatedDaysAgo: 28 },
-    ],
-    deploys: [
-      { label: "Summer collection homepage refresh", daysAgo: 6, kind: "content" },
-      { label: "Initial WaaS launch", daysAgo: 30, kind: "feature" },
-    ],
-    incidents: [],
-    domainRenewsInDays: 310,
-  },
-};
-
-export function siteHealthFor(company: Company): SiteHealth {
-  return { ...defaultSite(company), ...SEED_SITES[company.id] };
+export function vaultFor(state: CrmState, companyId: string): VaultEntry[] {
+  return state.vault.filter((v) => v.companyId === companyId);
 }
-
-/* ------------------------------------------------------------------ */
-/* Vault fixtures                                                      */
-/* ------------------------------------------------------------------ */
-
-export type VaultItem = {
-  id: string;
-  name: string;
-  category: "hosting" | "domain" | "marketing" | "analytics";
-  username: string;
-  /** Demo secret — a real vault decrypts client-side. */
-  secret: string;
-  url: string;
-  lastAccessDaysAgo: number;
-};
-
-const SEED_VAULT: Record<string, VaultItem[]> = {
-  "co-voyagr": [
-    {
-      id: "vl-1",
-      name: "Google Business Profile",
-      category: "marketing",
-      username: "hello@voyagr.app",
-      secret: "vygr-GBP-2093!x",
-      url: "https://business.google.com",
-      lastAccessDaysAgo: 3,
-    },
-    {
-      id: "vl-2",
-      name: "Meta Ads account",
-      category: "marketing",
-      username: "ads@voyagr.app",
-      secret: "vygr-Meta-7741#q",
-      url: "https://business.facebook.com",
-      lastAccessDaysAgo: 6,
-    },
-    {
-      id: "vl-3",
-      name: "Booking engine admin",
-      category: "hosting",
-      username: "admin@voyagr.app",
-      secret: "vygr-Book-1189$z",
-      url: "https://admin.voyagr.app",
-      lastAccessDaysAgo: 1,
-    },
-  ],
-};
-
-const FALLBACK_VAULT: VaultItem[] = [
-  {
-    id: "vl-a",
-    name: "Google Business Profile",
-    category: "marketing",
-    username: "owner@yourbusiness.com",
-    secret: "demo-GBP-0000!x",
-    url: "https://business.google.com",
-    lastAccessDaysAgo: 4,
-  },
-  {
-    id: "vl-b",
-    name: "Domain registrar",
-    category: "domain",
-    username: "owner@yourbusiness.com",
-    secret: "demo-DNS-0000#q",
-    url: "https://dash.cloudflare.com",
-    lastAccessDaysAgo: 12,
-  },
-];
-
-export function vaultFor(company: Company): VaultItem[] {
-  return SEED_VAULT[company.id] ?? FALLBACK_VAULT;
-}
-
-/* ------------------------------------------------------------------ */
-/* Analytics fixtures                                                  */
-/* ------------------------------------------------------------------ */
 
 export type AnalyticsData = {
   /** 30 daily points, oldest first. */
-  days: { at: number; visits: number; leads: number }[];
+  days: AnalyticsDay[];
   totals: { visits: number; leads: number; conversion: string };
   /** Percent change vs the previous 30 days. */
   deltas: { visits: number; leads: number };
@@ -439,57 +177,46 @@ export type AnalyticsData = {
   funnel: { label: string; value: number }[];
 };
 
-/** Deterministic PRNG so a company's numbers are stable across renders. */
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** Small deterministic jitter so derived numbers stay stable per company. */
+function jitter(companyId: string, salt: number): number {
+  return ((hashId(`${companyId}:${salt}`) % 1000) / 1000);
 }
 
-function hashId(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
+export function analyticsFor(state: CrmState, company: Company): AnalyticsData {
+  const site = siteHealthFor(state, company);
+  const days =
+    state.analytics[company.id] ?? demoAnalytics(company.id, site.visits30d);
 
-const DAY_MS = 86_400_000;
-
-export function analyticsFor(company: Company): AnalyticsData {
-  const site = siteHealthFor(company);
-  const rand = mulberry32(hashId(company.id));
-  const daily = site.visits30d / 30;
-  // Anchor days to local midnight so charts don't shift within a day.
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const days: AnalyticsData["days"] = [];
   let visits = 0;
   let leads = 0;
-  for (let i = 29; i >= 0; i--) {
-    const at = today.getTime() - i * DAY_MS;
-    const weekday = new Date(at).getDay();
-    const weekendDip = weekday === 0 || weekday === 6 ? 0.62 : 1;
-    const trend = 0.85 + ((29 - i) / 29) * 0.3; // gently up and to the right
-    const v = Math.max(1, Math.round(daily * weekendDip * trend * (0.75 + rand() * 0.5)));
-    const l = Math.round(v * (0.015 + rand() * 0.02));
-    days.push({ at, visits: v, leads: l });
-    visits += v;
-    leads += l;
+  for (const day of days) {
+    visits += day.visits;
+    leads += day.leads;
   }
 
-  const prev = Math.round(visits / (1.06 + rand() * 0.18));
-  const prevLeads = Math.max(1, Math.round(leads / (1.04 + rand() * 0.3)));
+  const prev = Math.round(visits / (1.06 + jitter(company.id, 1) * 0.18));
+  const prevLeads = Math.max(
+    1,
+    Math.round(leads / (1.04 + jitter(company.id, 2) * 0.3)),
+  );
 
-  const shares = [38 + rand() * 10, 24 + rand() * 8, 14 + rand() * 6, 8 + rand() * 4];
-  const rest = 100 - shares.reduce((a, b) => a + b, 0);
+  let sources = site.trafficSources;
+  if (sources.length === 0) {
+    const shares = [
+      38 + jitter(company.id, 3) * 10,
+      24 + jitter(company.id, 4) * 8,
+      14 + jitter(company.id, 5) * 6,
+      8 + jitter(company.id, 6) * 4,
+    ];
+    const rest = 100 - shares.reduce((a, b) => a + b, 0);
+    sources = [
+      { name: "Organic search", share: Math.round(shares[0]) },
+      { name: "Direct", share: Math.round(shares[1]) },
+      { name: "Social", share: Math.round(shares[2]) },
+      { name: "Referrals", share: Math.round(shares[3]) },
+      { name: "Other", share: Math.max(1, Math.round(rest)) },
+    ];
+  }
 
   return {
     days,
@@ -499,16 +226,10 @@ export function analyticsFor(company: Company): AnalyticsData {
       conversion: `${((leads / Math.max(1, visits)) * 100).toFixed(1)}%`,
     },
     deltas: {
-      visits: Math.round(((visits - prev) / prev) * 100),
+      visits: prev > 0 ? Math.round(((visits - prev) / prev) * 100) : 0,
       leads: Math.round(((leads - prevLeads) / prevLeads) * 100),
     },
-    sources: [
-      { name: "Organic search", share: Math.round(shares[0]) },
-      { name: "Direct", share: Math.round(shares[1]) },
-      { name: "Social", share: Math.round(shares[2]) },
-      { name: "Referrals", share: Math.round(shares[3]) },
-      { name: "Other", share: Math.max(1, Math.round(rest)) },
-    ],
+    sources,
     topPages: site.pages
       .slice()
       .sort((a, b) => b.views30d - a.views30d)

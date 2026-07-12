@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import {
   Check,
   ExternalLink,
   KeyRound,
   Link2,
   MailPlus,
+  Send,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
-import { clearClientCredential, useAccounts } from "@/lib/accounts";
 import { initials } from "@/lib/crm/types";
 import {
   PORTAL_TOOLS,
@@ -20,15 +20,114 @@ import { Card, SectionLabel } from "./ui";
 
 /**
  * Agency-side portal management. Every client company gets a real portal
- * at the main site — this screen previews it as them and hands out invite
- * links (the invite email, once sending is real).
+ * at the main site — this screen previews it as them, sends invite emails
+ * and decides which tools each client sees.
  */
+
+function InviteControls({ companyId }: { companyId: string }) {
+  const { state, actions, mode } = useCrm();
+  const contact = primaryContactFor(state, companyId);
+  const [email, setEmail] = useState(contact?.email ?? "");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Demo mode has no email — hand out the preview link instead.
+  if (mode === "demo") {
+    const copyInvite = async () => {
+      const link = `${window.location.origin}/login?invite=${companyId}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        window.prompt("Invite link:", link);
+      }
+    };
+    return (
+      <button
+        onClick={copyInvite}
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition ${
+          copied
+            ? "border-accent/50 bg-accent-dim text-accent"
+            : "border-edge bg-surface-2 text-ink-dim hover:border-edge-strong hover:text-ink"
+        }`}
+      >
+        {copied ? (
+          <>
+            <Check className="size-3.5" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Link2 className="size-3.5" />
+            Copy invite link
+          </>
+        )}
+      </button>
+    );
+  }
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy || !email.includes("@")) return;
+    setBusy(true);
+    setError(null);
+    const result = await actions.inviteClient(companyId, email, contact?.name);
+    setBusy(false);
+    if (result.ok) {
+      setSent(true);
+      setTimeout(() => setSent(false), 3000);
+    } else {
+      setError(result.error ?? "Invite failed.");
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex items-center gap-2">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          setError(null);
+        }}
+        placeholder="client@company.com"
+        title={error ?? undefined}
+        className={`w-44 rounded-lg border bg-surface-2 px-3 py-1.5 text-xs outline-none transition focus:border-accent/50 ${
+          error ? "border-red-500/60" : "border-edge"
+        }`}
+      />
+      <button
+        type="submit"
+        disabled={busy}
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition disabled:opacity-60 ${
+          sent
+            ? "border-accent/50 bg-accent-dim text-accent"
+            : "border-edge bg-surface-2 text-ink-dim hover:border-edge-strong hover:text-ink"
+        }`}
+      >
+        {sent ? (
+          <>
+            <Check className="size-3.5" />
+            Invite sent
+          </>
+        ) : (
+          <>
+            <Send className="size-3.5" />
+            {busy ? "Sending…" : "Email invite"}
+          </>
+        )}
+      </button>
+    </form>
+  );
+}
+
 export default function PortalView() {
-  const { state, actions } = useCrm();
-  const { clients: credentials } = useAccounts();
+  const { state, actions, mode } = useCrm();
   const clients = state.companies.filter((c) => c.isClient);
   const prospects = state.companies.filter((c) => !c.isClient);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const toggleTool = (companyId: string, entitled: string[], toolId: string) => {
     const next = entitled.includes(toolId)
@@ -37,26 +136,14 @@ export default function PortalView() {
     actions.setEntitlements(companyId, next);
   };
 
-  const copyInvite = async (companyId: string) => {
-    const link = `${window.location.origin}/login?invite=${companyId}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopiedId(companyId);
-      setTimeout(() => setCopiedId((id) => (id === companyId ? null : id)), 2000);
-    } catch {
-      // Clipboard blocked — surface the link instead.
-      window.prompt("Invite link:", link);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-4 pb-16 md:p-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Client portal</h1>
-        <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-dim">
+        <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
           Every client signs in at the main site and gets their own desktop —
           projects, invoices and support, fed live by this CRM. Preview any
-          portal or send an invite link.
+          portal or invite the client by email.
         </p>
       </div>
 
@@ -66,7 +153,10 @@ export default function PortalView() {
           {clients.map((c) => {
             const contact = primaryContactFor(state, c.id);
             const entitled = entitlementsFor(state, c);
-            const activated = Boolean(credentials[c.id]);
+            const portalUsers = state.clientUsers.filter(
+              (u) => u.companyId === c.id,
+            );
+            const activated = portalUsers.length > 0;
             return (
               <Card key={c.id} className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -85,43 +175,51 @@ export default function PortalView() {
                         {c.name}
                         <span
                           title={
-                            activated
-                              ? "The client set their password and can sign in"
-                              : "Waiting for the client to open their invite link"
+                            mode === "demo"
+                              ? "Demo portal — one click opens it from the sign-in screen"
+                              : activated
+                                ? `Signed-in access: ${portalUsers.map((u) => u.email).join(", ")}`
+                                : "No portal account yet — send an email invite"
                           }
                           className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
-                            activated
+                            mode === "demo" || activated
                               ? "border-accent/30 bg-accent-dim text-accent"
                               : "border-edge text-ink-faint"
                           }`}
                         >
-                          {activated ? "Active" : "Invited"}
+                          {mode === "demo"
+                            ? "Demo"
+                            : activated
+                              ? "Active"
+                              : "Not invited"}
                         </span>
                       </p>
                       <p className="truncate text-xs text-ink-faint">
-                        {contact
-                          ? `${contact.name} · ${contact.email}`
-                          : c.domain}
+                        {activated
+                          ? portalUsers.map((u) => u.email).join(", ")
+                          : contact
+                            ? `${contact.name} · ${contact.email}`
+                            : c.domain}
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {activated && (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {mode === "db" && activated && (
                       <button
                         onClick={() => {
                           if (
                             window.confirm(
-                              `Reset ${c.name}'s portal access? Their current password stops working and the invite link will ask them to set a new one.`,
+                              `Revoke ${c.name}'s portal access? Their account keeps existing, but it loses access to this portal until you invite them again.`,
                             )
                           ) {
-                            clearClientCredential(c.id);
+                            void actions.revokeClientAccess(c.id);
                           }
                         }}
-                        title="Revoke their password — the invite link sets a new one"
+                        title="Remove this company's portal users"
                         className="flex items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
                       >
                         <KeyRound className="size-3.5" />
-                        Reset access
+                        Revoke access
                       </button>
                     )}
                     <a
@@ -133,29 +231,10 @@ export default function PortalView() {
                       <ExternalLink className="size-3.5" />
                       Preview portal
                     </a>
-                    <button
-                      onClick={() => copyInvite(c.id)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition ${
-                        copiedId === c.id
-                          ? "border-accent/50 bg-accent-dim text-accent"
-                          : "border-edge bg-surface-2 text-ink-dim hover:border-edge-strong hover:text-ink"
-                      }`}
-                    >
-                      {copiedId === c.id ? (
-                        <>
-                          <Check className="size-3.5" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="size-3.5" />
-                          Copy invite link
-                        </>
-                      )}
-                    </button>
+                    <InviteControls companyId={c.id} />
                   </div>
                 </div>
-                <p className="mt-4 text-[11px] font-medium uppercase tracking-widest text-ink-faint">
+                <p className="mt-4 text-[11px] font-medium uppercase tracking-widest text-ink-dim">
                   Tools in their portal — click to toggle
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -197,7 +276,7 @@ export default function PortalView() {
       {prospects.length > 0 && (
         <Card className="flex items-start gap-3.5 p-5">
           <MailPlus className="mt-0.5 size-5 shrink-0 text-ink-faint" strokeWidth={1.75} />
-          <p className="text-sm leading-relaxed text-ink-dim">
+          <p className="text-base leading-relaxed text-ink-dim">
             {`${prospects.length} ${prospects.length === 1 ? "company" : "companies"}`}{" "}
             in the pipeline {prospects.length === 1 ? "isn't a client" : "aren't clients"}{" "}
             yet — win the deal and their portal switches on from here.
