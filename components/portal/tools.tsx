@@ -10,13 +10,17 @@ import {
   Globe,
   MessageSquare,
   PackageOpen,
+  Paperclip,
   Receipt,
   Rocket,
   Send,
   Timer,
+  X,
 } from "lucide-react";
 import { Modal } from "@/components/crm/ui";
+import FileLink from "@/components/crm/FileLink";
 import { useCrm } from "@/lib/crm/store";
+import { uploadWorkspaceFile, useWorkspaceFiles } from "@/lib/crm/files";
 import {
   fmtDate,
   fmtMoney,
@@ -261,15 +265,23 @@ function DeliverableReview({ deliverable }: { deliverable: Deliverable }) {
             {relTime(deliverable.postedAt)}
           </p>
         </div>
-        <a
-          href={deliverable.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
-        >
-          <ExternalLink className="size-3.5" />
-          Open
-        </a>
+        {deliverable.filePath ? (
+          <FileLink
+            path={deliverable.filePath}
+            name="Open"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
+          />
+        ) : (
+          <a
+            href={deliverable.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
+          >
+            <ExternalLink className="size-3.5" />
+            Open
+          </a>
+        )}
       </div>
       {deliverable.note && (
         <p className="mt-2.5 text-base leading-relaxed text-ink-dim">
@@ -621,15 +633,39 @@ function TicketThread({
   ticket: Ticket;
   authorName: string;
 }) {
-  const { actions } = useCrm();
+  const { actions, mode } = useCrm();
+  const { supabase, workspaceId } = useWorkspaceFiles();
   const [reply, setReply] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const canAttach = mode === "db" && workspaceId !== null;
 
-  const send = (e: FormEvent) => {
+  const send = async (e: FormEvent) => {
     e.preventDefault();
-    if (!reply.trim()) return;
-    actions.replyTicket(ticket.id, "client", authorName, reply);
+    if ((!reply.trim() && !file) || sending) return;
+    let attachments;
+    if (file && canAttach && workspaceId) {
+      setSending(true);
+      try {
+        attachments = [
+          await uploadWorkspaceFile(supabase, {
+            workspaceId,
+            companyId: ticket.companyId,
+            scope: "tickets",
+            recordId: ticket.id,
+            file,
+          }),
+        ];
+      } catch {
+        setSending(false);
+        return;
+      }
+      setSending(false);
+    }
+    actions.replyTicket(ticket.id, "client", authorName, reply, attachments);
     playSound("tap");
     setReply("");
+    setFile(null);
   };
 
   return (
@@ -643,28 +679,57 @@ function TicketThread({
               : "border-edge bg-surface-2/60"
           }`}
         >
-          <p className="text-sm leading-relaxed">{m.text}</p>
+          {m.text && <p className="text-sm leading-relaxed">{m.text}</p>}
+          {m.attachments.map((a) => (
+            <FileLink key={a.path} path={a.path} name={a.name} size={a.size} />
+          ))}
           <p className="mt-1.5 text-[11px] text-ink-faint">
             {m.author} · {relTime(m.at)}
           </p>
         </div>
       ))}
       {ticket.status !== "resolved" && (
-        <form onSubmit={send} className="flex gap-2 pt-1">
-          <input
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            placeholder="Reply to the team…"
-            className="min-w-0 flex-1 rounded-xl border border-edge bg-surface-2 px-3.5 py-2 text-sm outline-none transition focus:border-accent/50"
-          />
-          <button
-            type="submit"
-            disabled={!reply.trim()}
-            aria-label="Send reply"
-            className="rounded-xl bg-accent px-3.5 py-2 text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Send className="size-4" />
-          </button>
+        <form onSubmit={send} className="space-y-2 pt-1">
+          <div className="flex gap-2">
+            <input
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Reply to the team…"
+              className="min-w-0 flex-1 rounded-xl border border-edge bg-surface-2 px-3.5 py-2 text-sm outline-none transition focus:border-accent/50"
+            />
+            {canAttach && (
+              <label
+                aria-label="Attach a file"
+                className="flex cursor-pointer items-center rounded-xl border border-edge bg-surface-2/60 px-3 text-ink-dim transition hover:border-edge-strong hover:text-ink"
+              >
+                <Paperclip className="size-4" />
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            )}
+            <button
+              type="submit"
+              disabled={(!reply.trim() && !file) || sending}
+              aria-label="Send reply"
+              className="rounded-xl bg-accent px-3.5 py-2 text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send className={`size-4 ${sending ? "animate-pulse" : ""}`} />
+            </button>
+          </div>
+          {file && (
+            <button
+              type="button"
+              onClick={() => setFile(null)}
+              className="flex items-center gap-1.5 text-xs text-ink-dim hover:text-ink"
+            >
+              <Paperclip className="size-3" />
+              {file.name}
+              <X className="size-3" />
+            </button>
+          )}
         </form>
       )}
     </div>
@@ -672,7 +737,8 @@ function TicketThread({
 }
 
 export function SupportTool({ company }: { company: Company }) {
-  const { state, actions } = useCrm();
+  const { state, actions, mode } = useCrm();
+  const { supabase, workspaceId } = useWorkspaceFiles();
   const contact = primaryContactFor(state, company.id);
   const authorName = contact?.name ?? company.name;
   const tickets = ticketsFor(state, company.id);
@@ -680,13 +746,35 @@ export function SupportTool({ company }: { company: Company }) {
   const [topic, setTopic] = useState(REQUEST_TOPICS[0]);
   const [subject, setSubject] = useState("");
   const [details, setDetails] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const canAttach = mode === "db" && workspaceId !== null;
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const line = subject.trim();
-    if (!line) return;
+    if (!line || sending) return;
+    let attachments;
+    if (file && canAttach && workspaceId) {
+      setSending(true);
+      try {
+        attachments = [
+          await uploadWorkspaceFile(supabase, {
+            workspaceId,
+            companyId: company.id,
+            scope: "tickets",
+            recordId: crypto.randomUUID(),
+            file,
+          }),
+        ];
+      } catch {
+        setSending(false);
+        return;
+      }
+      setSending(false);
+    }
     // The round trip: the request becomes a ticket in the agency's Support
     // queue; replies and status changes land back here.
     const ticket = actions.createTicket({
@@ -696,10 +784,12 @@ export function SupportTool({ company }: { company: Company }) {
       topic,
       subject: line,
       details,
+      attachments,
     });
     playSound("open");
     setSubject("");
     setDetails("");
+    setFile(null);
     setSent(true);
     setOpenId(ticket.id);
   };
@@ -759,14 +849,38 @@ export function SupportTool({ company }: { company: Company }) {
             rows={4}
             className="os-scroll w-full resize-none rounded-xl border border-edge bg-surface-2 px-4 py-2.5 text-sm outline-none transition focus:border-accent/50"
           />
-          <button
-            type="submit"
-            disabled={!subject.trim()}
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Send className="size-4" />
-            Send request
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={!subject.trim() || sending}
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send className={`size-4 ${sending ? "animate-pulse" : ""}`} />
+              Send request
+            </button>
+            {canAttach &&
+              (file ? (
+                <button
+                  type="button"
+                  onClick={() => setFile(null)}
+                  className="flex items-center gap-1.5 text-xs text-ink-dim hover:text-ink"
+                >
+                  <Paperclip className="size-3" />
+                  {file.name}
+                  <X className="size-3" />
+                </button>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-dim transition hover:text-ink">
+                  <Paperclip className="size-3.5" />
+                  Attach a file
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              ))}
+          </div>
         </form>
       )}
 

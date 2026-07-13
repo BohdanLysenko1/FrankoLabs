@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
 import { computeDealHealth, healthStyle } from "@/lib/crm/pulse";
+import { uploadWorkspaceFile, useWorkspaceFiles } from "@/lib/crm/files";
 import {
   DAY,
   fmtMoney,
@@ -25,6 +26,7 @@ import {
   type DeliverableKind,
 } from "@/lib/crm/types";
 import { Drawer, Field, SectionLabel, inputCls } from "./ui";
+import FileLink from "./FileLink";
 
 const DELIVERABLE_KINDS: { id: DeliverableKind; label: string }[] = [
   { id: "design", label: "Design" },
@@ -35,10 +37,14 @@ const DELIVERABLE_KINDS: { id: DeliverableKind; label: string }[] = [
 
 /** Post work for client review and track their verdicts, per deal. */
 function DeliverablesSection({ deal }: { deal: Deal }) {
-  const { state, actions } = useCrm();
+  const { state, actions, mode } = useCrm();
+  const { supabase, workspaceId } = useWorkspaceFiles();
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<DeliverableKind>("design");
   const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const deliverables = state.deliverables
     .filter((d) => d.dealId === deal.id)
@@ -46,17 +52,44 @@ function DeliverablesSection({ deal }: { deal: Deal }) {
 
   if (!deal.companyId) return null;
 
-  const post = () => {
-    if (!title.trim() || !url.trim() || !deal.companyId) return;
+  // Real uploads exist only against the database; the demo keeps link-paste.
+  const canUpload =
+    mode === "db" && workspaceId !== null && (kind === "file" || kind === "doc");
+  const ready = title.trim() !== "" && (canUpload ? file !== null : url.trim() !== "");
+
+  const post = async () => {
+    if (!ready || uploading || !deal.companyId) return;
+    let filePath = "";
+    if (canUpload && file && workspaceId) {
+      setUploading(true);
+      setUploadError("");
+      try {
+        const att = await uploadWorkspaceFile(supabase, {
+          workspaceId,
+          companyId: deal.companyId,
+          scope: "deliverables",
+          recordId: crypto.randomUUID(),
+          file,
+        });
+        filePath = att.path;
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Upload failed.");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
     actions.addDeliverable({
       companyId: deal.companyId,
       dealId: deal.id,
       title: title.trim(),
       kind,
-      url: url.trim(),
+      url: filePath ? "" : url.trim(),
+      filePath,
     });
     setTitle("");
     setUrl("");
+    setFile(null);
   };
 
   return (
@@ -76,14 +109,22 @@ function DeliverablesSection({ deal }: { deal: Deal }) {
               ) : (
                 <Timer className="size-4 shrink-0 text-ink-faint" />
               )}
-              <a
-                href={d.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 truncate hover:text-accent"
-              >
-                {d.title}
-              </a>
+              {d.filePath ? (
+                <FileLink
+                  path={d.filePath}
+                  name={d.title}
+                  className="min-w-0 flex-1 truncate text-left hover:text-accent"
+                />
+              ) : (
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 truncate hover:text-accent"
+                >
+                  {d.title}
+                </a>
+              )}
               <span
                 className={`shrink-0 text-[11px] font-medium ${
                   d.status === "approved"
@@ -128,22 +169,33 @@ function DeliverablesSection({ deal }: { deal: Deal }) {
             </select>
           </div>
           <div className="flex gap-2">
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && post()}
-              placeholder="Link (Figma, staging, file…)"
-              className={inputCls}
-            />
+            {canUpload ? (
+              <input
+                type="file"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className={`${inputCls} cursor-pointer file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent-dim file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-accent`}
+              />
+            ) : (
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && post()}
+                placeholder="Link (Figma, staging, file…)"
+                className={inputCls}
+              />
+            )}
             <button
               onClick={post}
-              disabled={!title.trim() || !url.trim()}
+              disabled={!ready || uploading}
               aria-label="Post deliverable"
               className="shrink-0 rounded-xl bg-accent px-3.5 text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <PackageOpen className="size-4" />
+              <PackageOpen className={`size-4 ${uploading ? "animate-pulse" : ""}`} />
             </button>
           </div>
+          {uploadError && (
+            <p className="text-xs text-warn">{uploadError}</p>
+          )}
         </div>
       </div>
     </div>

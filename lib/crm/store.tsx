@@ -35,6 +35,7 @@ import {
   type Task,
   type TeamRole,
   type Ticket,
+  type TicketAttachment,
   type TicketMessage,
   type TicketStatus,
   type VaultCategory,
@@ -901,6 +902,7 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       topic: string;
       subject: string;
       details?: string;
+      attachments?: TicketAttachment[];
     }) => {
       const now = Date.now();
       const ticket: Ticket = {
@@ -919,6 +921,7 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
             author: input.author,
             text: input.details?.trim() || input.subject,
             at: now,
+            attachments: input.attachments ?? [],
           },
         ],
       };
@@ -941,13 +944,21 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       from: "client" | "agency",
       author: string,
       text: string,
+      attachments?: TicketAttachment[],
     ) => {
       const ticket = state.tickets.find((t) => t.id === id);
-      if (!ticket || !text.trim()) return;
+      if (!ticket || (!text.trim() && !attachments?.length)) return;
       dispatch({
         type: "ticket-message",
         ticketId: id,
-        message: { id: uid(), from, author, text: text.trim(), at: Date.now() },
+        message: {
+          id: uid(),
+          from,
+          author,
+          text: text.trim(),
+          at: Date.now(),
+          attachments: attachments ?? [],
+        },
         // An agency reply on a fresh ticket implicitly starts work on it.
         status:
           from === "agency" && ticket.status === "open"
@@ -968,6 +979,7 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       title: string;
       kind: DeliverableKind;
       url: string;
+      filePath?: string;
       note?: string;
     }) => {
       const deliverable: Deliverable = {
@@ -977,6 +989,7 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         title: input.title,
         kind: input.kind,
         url: input.url,
+        filePath: input.filePath ?? "",
         note: input.note?.trim() ?? "",
         status: "in_review",
         postedAt: Date.now(),
@@ -1833,6 +1846,7 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
             author: input.author,
             text: input.details?.trim() || input.subject,
             at: now,
+            attachments: input.attachments ?? [],
           },
         ],
       };
@@ -1846,24 +1860,37 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
           p_topic: ticket.topic,
           p_subject: ticket.subject,
           p_details: input.details ?? "",
+          p_attachments: input.attachments ?? [],
         }),
       );
       return ticket;
     },
-    replyTicket: (id, from, author, text) => {
+    replyTicket: (id, from, author, text, attachments) => {
       const ticket = getState().tickets.find((t) => t.id === id);
-      if (!ticket || !text.trim()) return;
+      if (!ticket || (!text.trim() && !attachments?.length)) return;
       local({
         type: "ticket-message",
         ticketId: id,
-        message: { id: uid(), from, author, text: text.trim(), at: Date.now() },
+        message: {
+          id: uid(),
+          from,
+          author,
+          text: text.trim(),
+          at: Date.now(),
+          attachments: attachments ?? [],
+        },
         status:
           from === "agency" && ticket.status === "open"
             ? "in_progress"
             : undefined,
       });
       write(() =>
-        db.rpc("reply_ticket", { p_ticket: id, p_author: author, p_body: text }),
+        db.rpc("reply_ticket", {
+          p_ticket: id,
+          p_author: author,
+          p_body: text,
+          p_attachments: attachments ?? [],
+        }),
       );
     },
     setTicketStatus: (id, status) => {
@@ -1894,6 +1921,7 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
         title: input.title,
         kind: input.kind,
         url: input.url,
+        filePath: input.filePath ?? "",
         note: input.note?.trim() ?? "",
         status: "in_review",
         postedAt: Date.now(),
@@ -1910,6 +1938,7 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
           title: deliverable.title,
           kind: deliverable.kind,
           url: deliverable.url,
+          file_path: deliverable.filePath,
           note: deliverable.note,
         }),
       );

@@ -201,6 +201,7 @@ export function rowToTicketMessage(r: Tables<"ticket_messages">): TicketMessage 
     author: r.author,
     text: r.body,
     at: ms(r.at),
+    attachments: (r.attachments ?? []) as TicketMessage["attachments"],
   };
 }
 
@@ -212,6 +213,7 @@ export function rowToDeliverable(r: Tables<"deliverables">): Deliverable {
     title: r.title,
     kind: r.kind as Deliverable["kind"],
     url: r.url,
+    filePath: r.file_path,
     note: r.note,
     status: r.status as Deliverable["status"],
     postedAt: ms(r.posted_at),

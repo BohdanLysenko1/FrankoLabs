@@ -1,21 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, Check } from "lucide-react";
-
-const CONTACT_EMAIL = "lysenkob337@gmail.com"; // TODO: switch to hello@frankolabs.com when the domain is live
-
-const requestTypes = [
-  { value: "consultation", label: "Book a consultation" },
-  { value: "audit", label: "Request a website audit" },
-  { value: "waas", label: "Website as a Service" },
-  { value: "custom", label: "Custom project" },
-  { value: "waitlist", label: "Franko OS waitlist" },
-];
+import { Send, Check, LoaderCircle } from "lucide-react";
+import { submitLeadIntake, type IntakeState } from "@/lib/actions/intake";
+import { CONTACT_EMAIL, requestTypes } from "@/lib/site/contact";
 
 const inputClass =
   "w-full rounded-xl border border-edge bg-surface-2/60 px-4 py-3 text-base outline-none transition placeholder:text-ink-faint focus:border-accent/60";
+
+const initialState: IntakeState = { ok: false };
 
 export default function ContactForm() {
   const params = useSearchParams();
@@ -25,38 +19,21 @@ export default function ContactForm() {
       ? initialType
       : "consultation",
   );
-  const [sent, setSent] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    submitLeadIntake,
+    initialState,
+  );
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const label =
-      requestTypes.find((t) => t.value === type)?.label ?? "Inquiry";
-    const subject = `[Franko Labs] ${label} — ${data.get("name")}`;
-    const body = [
-      `Name: ${data.get("name")}`,
-      `Email: ${data.get("email")}`,
-      `Company: ${data.get("company") || "—"}`,
-      `Request: ${label}`,
-      "",
-      `${data.get("message")}`,
-    ].join("\n");
-    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(body)}`;
-    setSent(true);
-  };
-
-  if (sent) {
+  if (state.ok) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-edge bg-surface-2/65 p-10 text-center">
         <span className="flex size-14 items-center justify-center rounded-full bg-accent-dim">
           <Check className="size-7 text-accent" />
         </span>
-        <p className="text-lg font-medium">Request handed to your mail app</p>
+        <p className="text-lg font-medium">Request received</p>
         <p className="max-w-md text-base leading-relaxed text-ink-dim">
-          Hit send there and we&apos;ll get back to you within one business
-          day. If nothing opened, email us directly at{" "}
+          We review every inquiry personally and will get back to you within
+          one business day. Prefer email? Reach us directly at{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-accent">
             {CONTACT_EMAIL}
           </a>
@@ -67,7 +44,15 @@ export default function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form action={formAction} className="space-y-4">
+      {/* Honeypot: humans never see this field; bots fill everything. */}
+      <div aria-hidden="true" className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden">
+        <label>
+          website
+          <input name="website" type="text" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-ink-dim">
@@ -101,6 +86,7 @@ export default function ContactForm() {
             request type
           </span>
           <select
+            name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             className={inputClass}
@@ -127,12 +113,23 @@ export default function ContactForm() {
         />
       </label>
 
+      {state.error ? (
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {state.error}
+        </p>
+      ) : null}
+
       <button
         type="submit"
-        className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110"
+        disabled={pending}
+        className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-base font-medium text-black transition hover:brightness-110 disabled:opacity-60"
       >
-        Submit request
-        <Send className="size-5" />
+        {pending ? "Sending…" : "Submit request"}
+        {pending ? (
+          <LoaderCircle className="size-5 animate-spin" />
+        ) : (
+          <Send className="size-5" />
+        )}
       </button>
     </form>
   );

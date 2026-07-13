@@ -439,6 +439,7 @@ export type Database = {
           client_comment: string
           company_id: string
           deal_id: string | null
+          file_path: string
           id: string
           kind: string
           note: string
@@ -453,6 +454,7 @@ export type Database = {
           client_comment?: string
           company_id: string
           deal_id?: string | null
+          file_path?: string
           id?: string
           kind?: string
           note?: string
@@ -467,6 +469,7 @@ export type Database = {
           client_comment?: string
           company_id?: string
           deal_id?: string | null
+          file_path?: string
           id?: string
           kind?: string
           note?: string
@@ -544,6 +547,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "doc_articles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          error: string | null
+          event: string
+          id: string
+          payload: Json
+          recipients: string[]
+          sent_at: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          event: string
+          id?: string
+          payload?: Json
+          recipients: string[]
+          sent_at?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          event?: string
+          id?: string
+          payload?: Json
+          recipients?: string[]
+          sent_at?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -638,6 +688,59 @@ export type Database = {
           },
           {
             foreignKeyName: "events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intake_requests: {
+        Row: {
+          company: string | null
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          deal_id: string | null
+          email: string
+          id: string
+          ip: string | null
+          message: string
+          name: string
+          request_type: string
+          workspace_id: string
+        }
+        Insert: {
+          company?: string | null
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          email: string
+          id?: string
+          ip?: string | null
+          message: string
+          name: string
+          request_type: string
+          workspace_id: string
+        }
+        Update: {
+          company?: string | null
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          email?: string
+          id?: string
+          ip?: string | null
+          message?: string
+          name?: string
+          request_type?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_requests_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -990,6 +1093,7 @@ export type Database = {
       ticket_messages: {
         Row: {
           at: string
+          attachments: Json
           author: string
           body: string
           company_id: string
@@ -1000,6 +1104,7 @@ export type Database = {
         }
         Insert: {
           at?: string
+          attachments?: Json
           author?: string
           body: string
           company_id: string
@@ -1010,6 +1115,7 @@ export type Database = {
         }
         Update: {
           at?: string
+          attachments?: Json
           author?: string
           body?: string
           company_id?: string
@@ -1229,6 +1335,7 @@ export type Database = {
           p_amount: number
           p_company: string
           p_deal: string
+          p_id: string
           p_summary: string
           p_terms: string[]
           p_title: string
@@ -1239,6 +1346,7 @@ export type Database = {
         Args: {
           p_company: string
           p_contact: string
+          p_id: string
           p_name: string
           p_source: string
           p_stage: string
@@ -1253,16 +1361,19 @@ export type Database = {
           p_company: string
           p_deal: string
           p_due_days: number
+          p_id: string
           p_label: string
         }
         Returns: string
       }
       create_ticket: {
         Args: {
+          p_attachments?: Json
           p_author: string
           p_company: string
           p_contact: string
           p_details: string
+          p_id: string
           p_subject: string
           p_topic: string
         }
@@ -1272,6 +1383,7 @@ export type Database = {
         Args: { p_name: string; p_template: string }
         Returns: string
       }
+      get_email_config: { Args: never; Returns: Json }
       mark_contract_viewed: { Args: { p_contract: string }; Returns: undefined }
       move_deal: {
         Args: { p_deal: string; p_stage: string }
@@ -1283,7 +1395,12 @@ export type Database = {
         Returns: undefined
       }
       reply_ticket: {
-        Args: { p_author: string; p_body: string; p_ticket: string }
+        Args: {
+          p_attachments?: Json
+          p_author: string
+          p_body: string
+          p_ticket: string
+        }
         Returns: undefined
       }
       respond_deliverable: {

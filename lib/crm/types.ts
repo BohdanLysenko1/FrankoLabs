@@ -202,12 +202,21 @@ export type Contract = {
 
 export type TicketStatus = "open" | "in_progress" | "resolved";
 
+/** A file stored in the workspace-files bucket, attached to a ticket message. */
+export type TicketAttachment = {
+  path: string;
+  name: string;
+  size: number;
+  mime: string;
+};
+
 export type TicketMessage = {
   id: string;
   from: "client" | "agency";
   author: string;
   text: string;
   at: number;
+  attachments: TicketAttachment[];
 };
 
 export type Ticket = {
@@ -235,6 +244,8 @@ export type Deliverable = {
   kind: DeliverableKind;
   /** Where the client looks: Figma link, staging URL, file, document. */
   url: string;
+  /** Storage object path in the workspace-files bucket (file/doc uploads). */
+  filePath: string;
   note: string;
   status: DeliverableStatus;
   postedAt: number;
