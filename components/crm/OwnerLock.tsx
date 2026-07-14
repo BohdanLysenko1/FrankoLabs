@@ -9,7 +9,6 @@ import {
   LockKeyhole,
   Mail,
   MailCheck,
-  UserRound,
 } from "lucide-react";
 import LogoMark from "@/components/os/LogoMark";
 import { createClient } from "@/lib/supabase/client";
@@ -18,14 +17,15 @@ import { playSound } from "@/lib/sound";
 import { inputCls } from "./ui";
 
 /**
- * The /crm door when nobody is signed in: sign in to an existing workspace,
- * create an account (workspace setup follows after the email confirm), or
- * request a password reset. The demo link opens a seeded, throwaway session.
+ * The /crm door when nobody is signed in: sign in to an existing workspace or
+ * request a password reset. Accounts are invite-only — team and client users
+ * are created by the owner, and workspace creation is allowlisted in the DB
+ * (create_workspace RPC), so there is no public sign-up. The demo link opens
+ * a seeded, throwaway session.
  */
 export default function OwnerLock() {
   const session = useSession();
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"signin" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,42 +62,6 @@ export default function OwnerLock() {
       return;
     }
 
-    if (mode === "signup") {
-      if (!name.trim()) {
-        setBusy(false);
-        setError("Add your name.");
-        return;
-      }
-      if (password.length < 8) {
-        setBusy(false);
-        setError("Password needs at least 8 characters.");
-        return;
-      }
-      const { data, error: err } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name.trim() },
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/crm`,
-        },
-      });
-      setBusy(false);
-      if (err) {
-        setError(err.message);
-        return;
-      }
-      if (data.session) {
-        // Email confirmation disabled — straight through to onboarding.
-        playSound("open");
-        await session.refresh();
-      } else {
-        setNotice(
-          `Almost there — we sent a confirmation link to ${email}. Open it and you'll land back here to set up your workspace.`,
-        );
-      }
-      return;
-    }
-
     // Password reset.
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/auth/set-password`,
@@ -124,39 +88,20 @@ export default function OwnerLock() {
               <h1 className="mt-5 text-xl font-semibold tracking-tight">
                 {mode === "signin"
                   ? "Sign in to your workspace"
-                  : mode === "signup"
-                    ? "Create your workspace"
-                    : "Reset your password"}
+                  : "Reset your password"}
               </h1>
               <p className="mt-1 text-sm text-ink-dim">
                 {mode === "signin"
-                  ? "Your CRM, synced and live from anywhere."
-                  : mode === "signup"
-                    ? "One account runs the whole OS — CRM, portal, billing."
-                    : "We'll email you a link to pick a new password."}
+                  ? "Your CRM, synced and live from anywhere. Accounts are invite-only."
+                  : "We'll email you a link to pick a new password."}
               </p>
 
               <div className="mt-5 space-y-3">
-                {mode === "signup" && (
-                  <div className="relative">
-                    <UserRound className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-                    <input
-                      autoFocus
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="Your name"
-                      className={`${inputCls} pl-10`}
-                    />
-                  </div>
-                )}
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
                   <input
                     type="email"
-                    autoFocus={mode !== "signup"}
+                    autoFocus
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
@@ -176,11 +121,7 @@ export default function OwnerLock() {
                         setPassword(e.target.value);
                         setError(null);
                       }}
-                      placeholder={
-                        mode === "signup"
-                          ? "Create a password (8+ characters)"
-                          : "Password"
-                      }
+                      placeholder="Password"
                       className={`${inputCls} pl-10`}
                     />
                   </div>
@@ -200,32 +141,19 @@ export default function OwnerLock() {
                 disabled={busy}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-black transition hover:brightness-110 disabled:opacity-60"
               >
-                {mode === "signin"
-                  ? "Unlock workspace"
-                  : mode === "signup"
-                    ? "Create account"
-                    : "Email me a reset link"}
+                {mode === "signin" ? "Unlock workspace" : "Email me a reset link"}
                 <ArrowRight className="size-4" />
               </button>
 
               {mode === "signin" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => switchMode("signup")}
-                    className="mt-3 w-full text-center text-xs text-ink-dim transition hover:text-ink"
-                  >
-                    New here? Create your workspace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchMode("reset")}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 text-center text-xs text-ink-faint transition hover:text-ink"
-                  >
-                    <KeyRound className="size-3" />
-                    Forgot your password?
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => switchMode("reset")}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 text-center text-xs text-ink-faint transition hover:text-ink"
+                >
+                  <KeyRound className="size-3" />
+                  Forgot your password?
+                </button>
               ) : (
                 <button
                   type="button"

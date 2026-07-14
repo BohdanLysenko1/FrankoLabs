@@ -1,6 +1,6 @@
 /** Contact form request types, shared by the public form and the intake server action. */
 
-export const CONTACT_EMAIL = "lysenkob337@gmail.com"; // TODO: switch to hello@frankolabs.com when the domain is live
+export const CONTACT_EMAIL = "bohdan@frankohq.com"; // TODO: switch to hello@frankolabs.com when that domain is live
 
 export const requestTypes = [
   { value: "consultation", label: "Book a consultation" },

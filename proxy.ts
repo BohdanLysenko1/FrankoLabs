@@ -3,9 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Keeps the Supabase auth session fresh on every request (rotating tokens
- * land back in cookies). No redirects here: logged-out visitors get the local
- * demo experience, and the client-side gates (OwnerLock, PortalGate) decide
- * what an authenticated user may see.
+ * land back in cookies). Logged-out visitors get the local demo experience;
+ * the client-side gates (OwnerLock, PortalGate) decide what an authenticated
+ * user may see — except /crm, which is also guarded here so client-portal
+ * accounts never mount the agency UI at all.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -33,7 +34,29 @@ export async function proxy(request: NextRequest) {
 
   // IMPORTANT: do not remove — this call refreshes expired sessions. Without
   // it users get randomly signed out during SSR.
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+
+  // Client accounts belong in the portal, not the CRM.
+  const userId = data?.claims?.sub;
+  if (userId && request.nextUrl.pathname.startsWith("/crm")) {
+    const [member, client] = await Promise.all([
+      supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (!member.data && client.data) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
 
   return response;
 }

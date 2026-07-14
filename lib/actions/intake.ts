@@ -175,7 +175,7 @@ export async function submitLeadIntake(
       {
         workspace_id: workspaceId,
         event: "lead-intake-owner",
-        recipients: adminEmails.length > 0 ? adminEmails : ["lysenkob337@gmail.com"],
+        recipients: adminEmails.length > 0 ? adminEmails : ["bohdan@frankohq.com"],
         payload: { name, email, company: companyName, requestType: label, message: message.slice(0, 600) },
       },
       {

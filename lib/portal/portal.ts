@@ -138,14 +138,16 @@ const ALL_TOOL_IDS = PORTAL_TOOLS.map((t) => t.id);
 
 /**
  * What this client bought. Entitlements live in the CRM store (edited from
- * the Portal view); companies without a record default to the full toolset.
+ * the Portal view). Fail-closed: a company without a record gets NO tools —
+ * the owner grants exactly what was paid for. The database enforces the same
+ * rule (app.client_has_tool in RLS), so this is presentation, not security.
  */
 export function entitlementsFor(
   state: CrmState,
   company: Company,
 ): PortalToolId[] {
   const saved = state.entitlements[company.id];
-  if (!saved) return ALL_TOOL_IDS;
+  if (!saved) return [];
   return ALL_TOOL_IDS.filter((id) => saved.includes(id));
 }
 
