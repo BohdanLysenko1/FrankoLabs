@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Building2,
   Check,
+  Download,
   Globe,
   MapPin,
   Pencil,
@@ -12,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
+import { downloadCsv } from "@/lib/crm/csv";
 import { fmtMoney, type Company } from "@/lib/crm/types";
 import {
   Avatar,
@@ -343,6 +345,26 @@ export default function CompaniesView() {
         title="Companies"
         subtitle={`${state.companies.length} organizations — ${state.companies.filter((c) => c.isClient).length} active clients.`}
       >
+        <GhostButton
+          onClick={() =>
+            downloadCsv(
+              "companies",
+              ["name", "domain", "industry", "location", "client", "notes"],
+              state.companies.map((c) => [
+                c.name,
+                c.domain,
+                c.industry,
+                c.location,
+                c.isClient ? "yes" : "no",
+                c.notes,
+              ]),
+            )
+          }
+          disabled={state.companies.length === 0}
+        >
+          <Download className="size-4" />
+          Export
+        </GhostButton>
         <PrimaryButton onClick={() => setAdding(true)}>
           <Plus className="size-4" />
           New company

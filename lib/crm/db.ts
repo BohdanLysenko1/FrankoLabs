@@ -24,7 +24,11 @@ import {
   type Deliverable,
   type DocArticle,
   type DocSection,
+  type EmailMessage,
+  type EmailThread,
   type Invoice,
+  type Retainer,
+  type TimeEntry,
   type Lead,
   type SiteHealth,
   type Stage,
@@ -177,6 +181,69 @@ export function rowToInvoice(r: Tables<"invoices">): Invoice {
     dueAt: ms(r.due_at),
     paidAt: msOrNull(r.paid_at),
     status: r.status as Invoice["status"],
+  };
+}
+
+export function rowToRetainer(r: Tables<"retainers">): Retainer {
+  return {
+    id: r.id,
+    companyId: r.company_id,
+    name: r.name,
+    amount: Number(r.amount),
+    includedHours: Number(r.included_hours),
+    billingDay: r.billing_day,
+    active: r.active,
+    autoInvoice: r.auto_invoice,
+    nextInvoiceOn: msOrNull(r.next_invoice_on),
+    notes: r.notes,
+    createdAt: ms(r.created_at),
+  };
+}
+
+export function rowToTimeEntry(r: Tables<"time_entries">): TimeEntry {
+  return {
+    id: r.id,
+    companyId: r.company_id,
+    retainerId: r.retainer_id,
+    taskId: r.task_id,
+    dealId: r.deal_id,
+    author: r.author,
+    minutes: r.minutes,
+    note: r.note,
+    entryDate: ms(r.entry_date),
+    billable: r.billable,
+    createdAt: ms(r.created_at),
+  };
+}
+
+export function rowToEmailThread(
+  r: Tables<"email_threads">,
+  messages: EmailMessage[] = [],
+): EmailThread {
+  return {
+    id: r.id,
+    subject: r.subject,
+    contactId: r.contact_id,
+    companyId: r.company_id,
+    leadId: r.lead_id,
+    lastMessageAt: ms(r.last_message_at),
+    lastDirection: r.last_direction as EmailThread["lastDirection"],
+    snippet: r.snippet,
+    unread: r.unread,
+    createdAt: ms(r.created_at),
+    messages,
+  };
+}
+
+export function rowToEmailMessage(r: Tables<"email_messages">): EmailMessage {
+  return {
+    id: r.id,
+    direction: r.direction as EmailMessage["direction"],
+    fromEmail: r.from_email,
+    fromName: r.from_name,
+    toEmails: r.to_emails,
+    bodyText: r.body_text,
+    at: ms(r.at),
   };
 }
 
@@ -415,6 +482,9 @@ const sortState = (state: CrmState): CrmState => ({
   activities: [...state.activities].sort(byDesc((a) => a.at)),
   events: [...state.events].sort(byAsc((e) => e.startAt)),
   invoices: [...state.invoices].sort(byDesc((i) => i.issuedAt)),
+  retainers: [...state.retainers].sort(byDesc((r) => r.createdAt)),
+  timeEntries: [...state.timeEntries].sort(byDesc((t) => t.entryDate)),
+  emailThreads: [...state.emailThreads].sort(byDesc((t) => t.lastMessageAt)),
   contracts: [...state.contracts].sort(byDesc((c) => c.sentAt)),
   tickets: [...state.tickets].sort(byDesc((t) => t.updatedAt)),
   deliverables: [...state.deliverables].sort(byDesc((d) => d.postedAt)),
@@ -447,6 +517,10 @@ export async function loadWorkspaceState(
     activitiesRes,
     eventsRes,
     invoicesRes,
+    retainersRes,
+    timeEntriesRes,
+    emailThreadsRes,
+    emailMessagesRes,
     contractsRes,
     ticketsRes,
     ticketMessagesRes,
@@ -477,6 +551,14 @@ export async function loadWorkspaceState(
       .limit(1000),
     db.from("events").select("*").eq("workspace_id", workspaceId),
     db.from("invoices").select("*").eq("workspace_id", workspaceId),
+    db.from("retainers").select("*").eq("workspace_id", workspaceId),
+    db.from("time_entries").select("*").eq("workspace_id", workspaceId),
+    db.from("email_threads").select("*").eq("workspace_id", workspaceId),
+    db
+      .from("email_messages")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("at"),
     db.from("contracts").select("*").eq("workspace_id", workspaceId),
     db.from("tickets").select("*").eq("workspace_id", workspaceId),
     db
@@ -510,6 +592,13 @@ export async function loadWorkspaceState(
     messagesByTicket.set(m.ticket_id, list);
   }
 
+  const messagesByThread = new Map<string, EmailMessage[]>();
+  for (const m of emailMessagesRes.data ?? []) {
+    const list = messagesByThread.get(m.thread_id) ?? [];
+    list.push(rowToEmailMessage(m));
+    messagesByThread.set(m.thread_id, list);
+  }
+
   const entitlements: Record<string, string[]> = {};
   for (const e of entitlementsRes.data ?? []) {
     entitlements[e.company_id] = e.tool_ids;
@@ -532,6 +621,7 @@ export async function loadWorkspaceState(
     id: workspaceRes.data.id,
     name: workspaceRes.data.name,
     plan: workspaceRes.data.plan as Workspace["plan"],
+    inboundAddress: workspaceRes.data.inbound_address ?? "",
   };
 
   return sortState({
@@ -545,6 +635,11 @@ export async function loadWorkspaceState(
     activities: (activitiesRes.data ?? []).map(rowToActivity),
     events: (eventsRes.data ?? []).map(rowToEvent),
     invoices: (invoicesRes.data ?? []).map(rowToInvoice),
+    retainers: (retainersRes.data ?? []).map(rowToRetainer),
+    timeEntries: (timeEntriesRes.data ?? []).map(rowToTimeEntry),
+    emailThreads: (emailThreadsRes.data ?? []).map((t) =>
+      rowToEmailThread(t, messagesByThread.get(t.id) ?? []),
+    ),
     contracts: (contractsRes.data ?? []).map(rowToContract),
     tickets: (ticketsRes.data ?? []).map((t) =>
       rowToTicket(t, messagesByTicket.get(t.id) ?? []),
@@ -658,6 +753,7 @@ export function applyChange(
           id: r.id,
           name: r.name,
           plan: r.plan as Workspace["plan"],
+          inboundAddress: r.inbound_address ?? "",
         },
       });
     }
@@ -738,6 +834,54 @@ export function applyChange(
               (a, b) => b.issuedAt - a.issuedAt,
             ),
       });
+    case "retainers":
+      return ok({
+        ...state,
+        retainers: del
+          ? removeBy(state.retainers, id, (r) => r.id)
+          : upsertBy(state.retainers, rowToRetainer(newRow as Tables<"retainers">), (r) => r.id).sort(
+              (a, b) => b.createdAt - a.createdAt,
+            ),
+      });
+    case "time_entries":
+      return ok({
+        ...state,
+        timeEntries: del
+          ? removeBy(state.timeEntries, id, (t) => t.id)
+          : upsertBy(state.timeEntries, rowToTimeEntry(newRow as Tables<"time_entries">), (t) => t.id).sort(
+              (a, b) => b.entryDate - a.entryDate,
+            ),
+      });
+    case "email_threads": {
+      if (del) {
+        return ok({
+          ...state,
+          emailThreads: removeBy(state.emailThreads, id, (t) => t.id),
+        });
+      }
+      const r = newRow as Tables<"email_threads">;
+      const existing = state.emailThreads.find((t) => t.id === r.id);
+      const mapped = rowToEmailThread(r, existing?.messages ?? []);
+      return ok({
+        ...state,
+        emailThreads: upsertBy(state.emailThreads, mapped, (t) => t.id).sort(
+          (a, b) => b.lastMessageAt - a.lastMessageAt,
+        ),
+      });
+    }
+    case "email_messages": {
+      if (del) return ok(state);
+      const r = newRow as Tables<"email_messages">;
+      const message = rowToEmailMessage(r);
+      return ok({
+        ...state,
+        emailThreads: state.emailThreads.map((t) =>
+          t.id === r.thread_id && !t.messages.some((m) => m.id === message.id)
+            ? { ...t, messages: [...t.messages, message] }
+            : t,
+        ),
+      });
+    }
     case "contracts":
       return ok({
         ...state,
@@ -874,6 +1018,10 @@ export const REALTIME_TABLES = [
   "activities",
   "events",
   "invoices",
+  "retainers",
+  "time_entries",
+  "email_threads",
+  "email_messages",
   "contracts",
   "tickets",
   "ticket_messages",
@@ -1100,6 +1248,83 @@ export async function importWorkspaceData(
       paid_at: isoOrNull(i.paidAt),
       status: i.status,
     })),
+  );
+
+  const dateStr = (at: number): string => new Date(at).toISOString().slice(0, 10);
+
+  await insertAll(
+    db,
+    "retainers",
+    (data.retainers ?? []).map((r) => ({
+      id: remap(r.id),
+      workspace_id: workspaceId,
+      company_id: remap(r.companyId),
+      name: r.name,
+      amount: r.amount,
+      included_hours: r.includedHours,
+      billing_day: r.billingDay,
+      active: r.active,
+      auto_invoice: r.autoInvoice,
+      next_invoice_on: r.nextInvoiceOn === null ? null : dateStr(r.nextInvoiceOn),
+      notes: r.notes,
+      created_at: iso(r.createdAt),
+    })),
+  );
+
+  await insertAll(
+    db,
+    "time_entries",
+    (data.timeEntries ?? []).map((t) => ({
+      id: remap(t.id),
+      workspace_id: workspaceId,
+      company_id: remapOrNull(t.companyId),
+      retainer_id: remapOrNull(t.retainerId),
+      task_id: remapOrNull(t.taskId),
+      deal_id: remapOrNull(t.dealId),
+      author: t.author,
+      minutes: t.minutes,
+      note: t.note,
+      entry_date: dateStr(t.entryDate),
+      billable: t.billable,
+      created_at: iso(t.createdAt),
+    })),
+  );
+
+  await insertAll(
+    db,
+    "email_threads",
+    (data.emailThreads ?? []).map((t) => ({
+      id: remap(t.id),
+      workspace_id: workspaceId,
+      subject: t.subject,
+      contact_id: remapOrNull(t.contactId),
+      company_id: remapOrNull(t.companyId),
+      lead_id: remapOrNull(t.leadId),
+      last_message_at: iso(t.lastMessageAt),
+      last_direction: t.lastDirection,
+      snippet: t.snippet,
+      unread: t.unread,
+      created_at: iso(t.createdAt),
+    })),
+  );
+
+  await insertAll(
+    db,
+    "email_messages",
+    (data.emailThreads ?? []).flatMap((t) =>
+      t.messages.map((m) => ({
+        id: remap(m.id),
+        thread_id: remap(t.id),
+        workspace_id: workspaceId,
+        direction: m.direction,
+        from_email: m.fromEmail,
+        from_name: m.fromName,
+        to_emails: m.toEmails,
+        subject: t.subject,
+        body_text: m.bodyText,
+        at: iso(m.at),
+      })),
+    ),
   );
 
   await insertAll(

@@ -92,6 +92,8 @@ function WorkspaceTab() {
   const { state, actions } = useCrm();
   const [name, setName] = useState(state.workspace.name);
   const [saved, setSaved] = useState(false);
+  const [inbound, setInbound] = useState(state.workspace.inboundAddress);
+  const [inboundSaved, setInboundSaved] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -116,6 +118,36 @@ function WorkspaceTab() {
             }}
           >
             {saved ? <Check className="size-4" /> : "Save"}
+          </PrimaryButton>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <SectionLabel>Inbound email address</SectionLabel>
+        <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-dim">
+          Emails sent to this address land in Mail → Inbox, threaded onto the
+          right contact or lead. Point a Resend inbound route at it (an
+          address on a domain whose MX records go to Resend), then set it
+          here.
+        </p>
+        <div className="mt-4 flex max-w-md gap-2">
+          <input
+            value={inbound}
+            onChange={(e) => {
+              setInbound(e.target.value);
+              setInboundSaved(false);
+            }}
+            placeholder="reply@in.yourdomain.com"
+            type="email"
+            className={inputCls}
+          />
+          <PrimaryButton
+            onClick={() => {
+              actions.setInboundAddress(inbound);
+              setInboundSaved(true);
+            }}
+          >
+            {inboundSaved ? <Check className="size-4" /> : "Save"}
           </PrimaryButton>
         </div>
       </Card>
@@ -765,9 +797,23 @@ function TeamTab() {
                 </p>
                 <p className="truncate text-xs text-ink-faint">{m.email}</p>
               </div>
-              <span className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim">
-                {m.role}
-              </span>
+              {m.role !== "Owner" && !isSelf ? (
+                <select
+                  value={m.role}
+                  onChange={(e) =>
+                    actions.setTeamRole(m.id, e.target.value as TeamRole)
+                  }
+                  aria-label={`Role for ${m.name}`}
+                  className="rounded-lg border border-edge bg-surface-2 px-2 py-1 text-xs text-ink-dim outline-none transition hover:border-edge-strong focus:border-accent/60"
+                >
+                  <option>Member</option>
+                  <option>Admin</option>
+                </select>
+              ) : (
+                <span className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim">
+                  {m.role}
+                </span>
+              )}
               {m.role !== "Owner" && !isSelf && (
                 <button
                   onClick={() => actions.removeTeamMember(m.id)}

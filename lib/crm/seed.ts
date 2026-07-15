@@ -332,8 +332,17 @@ export function makeSeedState(now: number = Date.now()): CrmState {
     return t.getTime();
   };
 
+  /** Next occurrence of a billing day strictly after today. */
+  const nextBilling = (day: number) => {
+    const t = new Date(now);
+    t.setHours(0, 0, 0, 0);
+    const candidate = new Date(t.getFullYear(), t.getMonth(), day);
+    if (candidate.getTime() > t.getTime()) return candidate.getTime();
+    return new Date(t.getFullYear(), t.getMonth() + 1, day).getTime();
+  };
+
   return {
-    workspace: { id: "", name: "Franko Labs", plan: "studio" },
+    workspace: { id: "", name: "Franko Labs", plan: "studio", inboundAddress: "" },
     stages: AGENCY_STAGES,
     onboarded: false,
     readNotifIds: [],
@@ -1115,6 +1124,224 @@ export function makeSeedState(now: number = Date.now()): CrmState {
         dueAt: now + 10 * DAY,
         paidAt: null,
         status: "due",
+      },
+    ],
+
+    retainers: [
+      {
+        id: "rt-northbeam",
+        companyId: "co-northbeam",
+        name: "SEO retainer",
+        amount: 1_500,
+        includedHours: 10,
+        billingDay: 1,
+        active: true,
+        autoInvoice: true,
+        nextInvoiceOn: nextBilling(1),
+        notes: "Monthly SEO + content. Report call first week of the month.",
+        createdAt: d(117),
+      },
+      {
+        id: "rt-bloom",
+        companyId: "co-bloom",
+        name: "WaaS subscription",
+        amount: 300,
+        includedHours: 2,
+        billingDay: 15,
+        active: true,
+        autoInvoice: true,
+        nextInvoiceOn: nextBilling(15),
+        notes: "Website-as-a-service — hosting, updates, seasonal promo pages.",
+        createdAt: d(48),
+      },
+      {
+        id: "rt-voyagr",
+        companyId: "co-voyagr",
+        name: "Growth & support retainer",
+        amount: 2_500,
+        includedHours: 20,
+        billingDay: 1,
+        active: true,
+        autoInvoice: false,
+        nextInvoiceOn: null,
+        notes: "Post-launch support — invoiced manually alongside project billing.",
+        createdAt: d(30),
+      },
+    ],
+
+    timeEntries: [
+      {
+        id: "te-1",
+        companyId: "co-northbeam",
+        retainerId: "rt-northbeam",
+        taskId: null,
+        dealId: null,
+        author: "Ava Martinez",
+        minutes: 150,
+        note: "Service-page content refresh + internal links.",
+        entryDate: d(3),
+        billable: true,
+        createdAt: d(3),
+      },
+      {
+        id: "te-2",
+        companyId: "co-northbeam",
+        retainerId: "rt-northbeam",
+        taskId: null,
+        dealId: null,
+        author: "Bohdan Lysenko",
+        minutes: 90,
+        note: "June ranking report + next-month keyword plan.",
+        entryDate: d(6),
+        billable: true,
+        createdAt: d(6),
+      },
+      {
+        id: "te-3",
+        companyId: "co-bloom",
+        retainerId: "rt-bloom",
+        taskId: null,
+        dealId: null,
+        author: "Ava Martinez",
+        minutes: 45,
+        note: "Summer promo banner + product photos swap.",
+        entryDate: d(2),
+        billable: true,
+        createdAt: d(2),
+      },
+      {
+        id: "te-4",
+        companyId: "co-voyagr",
+        retainerId: "rt-voyagr",
+        taskId: null,
+        dealId: null,
+        author: "Bohdan Lysenko",
+        minutes: 240,
+        note: "Booking flow revisions from Maya's feedback.",
+        entryDate: d(1),
+        billable: true,
+        createdAt: d(1),
+      },
+      {
+        id: "te-5",
+        companyId: "co-voyagr",
+        retainerId: "rt-voyagr",
+        taskId: null,
+        dealId: null,
+        author: "Ava Martinez",
+        minutes: 120,
+        note: "Search filters QA on staging.",
+        entryDate: d(4),
+        billable: true,
+        createdAt: d(4),
+      },
+    ],
+
+    emailThreads: [
+      {
+        id: "th-copperleaf",
+        subject: "Website pricing for Copperleaf Brewing",
+        contactId: null,
+        companyId: null,
+        leadId: "ld-copperleaf",
+        lastMessageAt: d(1),
+        lastDirection: "in",
+        snippet:
+          "Pricing works for us. One thing I forgot to ask — can the site handle online ordering for merch and…",
+        unread: true,
+        createdAt: d(3),
+        messages: [
+          {
+            id: "em-cl-1",
+            direction: "out",
+            fromEmail: "hello@frankolabs.com",
+            fromName: "Bohdan Lysenko",
+            toEmails: ["dan@copperleafbrew.com"],
+            bodyText:
+              "Hey Dan,\n\nGreat talking earlier. As promised — a new site for Copperleaf lands around $6,500 for design + build, with hosting and updates at $95/mo after launch.\n\nHappy to walk through examples whenever suits.",
+            at: d(3),
+          },
+          {
+            id: "em-cl-2",
+            direction: "in",
+            fromEmail: "dan@copperleafbrew.com",
+            fromName: "Dan Okafor",
+            toEmails: ["hello@frankolabs.com"],
+            bodyText:
+              "Pricing works for us. One thing I forgot to ask — can the site handle online ordering for merch and taproom pickups? That would seal it.\n\nDan",
+            at: d(1),
+          },
+        ],
+      },
+      {
+        id: "th-maya",
+        subject: "Booking flow — next revisions",
+        contactId: "ct-maya",
+        companyId: "co-voyagr",
+        leadId: null,
+        lastMessageAt: d(2),
+        lastDirection: "out",
+        snippet:
+          "All three are in — new date picker is on staging now. Loom walkthrough coming tomorrow.",
+        unread: false,
+        createdAt: d(3),
+        messages: [
+          {
+            id: "em-my-1",
+            direction: "in",
+            fromEmail: "maya@voyagr.app",
+            fromName: "Maya Chen",
+            toEmails: ["hello@frankolabs.com"],
+            bodyText:
+              "Team loved the sprint review. Three tweaks on the booking flow: calendar should default to the next available date, the guest picker needs a max of 8, and can we soften the confirmation copy?\n\nMaya",
+            at: d(3),
+          },
+          {
+            id: "em-my-2",
+            direction: "out",
+            fromEmail: "hello@frankolabs.com",
+            fromName: "Bohdan Lysenko",
+            toEmails: ["maya@voyagr.app"],
+            bodyText:
+              "All three are in — new date picker is on staging now. Loom walkthrough coming tomorrow.",
+            at: d(2),
+          },
+        ],
+      },
+      {
+        id: "th-sarah",
+        subject: "June SEO report",
+        contactId: "ct-sarah",
+        companyId: "co-northbeam",
+        leadId: null,
+        lastMessageAt: d(8),
+        lastDirection: "in",
+        snippet:
+          "This is the best month yet — 14 new-patient forms from organic. Whatever you're doing, keep doing it.",
+        unread: false,
+        createdAt: d(9),
+        messages: [
+          {
+            id: "em-sr-1",
+            direction: "out",
+            fromEmail: "hello@frankolabs.com",
+            fromName: "Bohdan Lysenko",
+            toEmails: ["sarah@northbeamdental.com"],
+            bodyText:
+              "Hi Sarah,\n\nJune report attached to your portal. Highlights: 'dentist portland' up to #4, organic visits +18% month over month, and the new implants page is already ranking.\n\nReport call as usual Thursday?",
+            at: d(9),
+          },
+          {
+            id: "em-sr-2",
+            direction: "in",
+            fromEmail: "sarah@northbeamdental.com",
+            fromName: "Dr. Sarah Whitfield",
+            toEmails: ["hello@frankolabs.com"],
+            bodyText:
+              "This is the best month yet — 14 new-patient forms from organic. Whatever you're doing, keep doing it. Thursday works.\n\nSarah",
+            at: d(8),
+          },
+        ],
       },
     ],
 

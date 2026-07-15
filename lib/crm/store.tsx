@@ -15,6 +15,7 @@ import { makeSeedState, makeSeedDocs, AGENCY_STAGES, SIMPLE_STAGES, DEMO_VAULT_S
 import {
   uid,
   DAY,
+  nextBillingDate,
   type Activity,
   type ActivityType,
   type AutomationRule,
@@ -28,10 +29,13 @@ import {
   type Deliverable,
   type DeliverableKind,
   type DocArticle,
+  type EmailMessage,
+  type EmailThread,
   type Invoice,
   type Lead,
   type OpenRequest,
   type PlanId,
+  type Retainer,
   type Stage,
   type Task,
   type TeamRole,
@@ -39,6 +43,7 @@ import {
   type TicketAttachment,
   type TicketMessage,
   type TicketStatus,
+  type TimeEntry,
   type VaultCategory,
   type VaultEntry,
 } from "./types";
@@ -100,6 +105,7 @@ type Action =
   | { type: "move-deal"; id: string; stageId: string; at: number }
   | { type: "delete-deal"; id: string }
   | { type: "add-task"; task: Task }
+  | { type: "update-task"; id: string; patch: Partial<Task> }
   | { type: "toggle-task"; id: string }
   | { type: "delete-task"; id: string }
   | { type: "add-event"; event: CalEvent }
@@ -108,6 +114,15 @@ type Action =
   | { type: "log-activity"; activity: Activity }
   | { type: "add-invoice"; invoice: Invoice }
   | { type: "pay-invoice"; id: string; at: number }
+  | { type: "save-retainer"; retainer: Retainer }
+  | { type: "delete-retainer"; id: string }
+  | { type: "add-time-entry"; entry: TimeEntry }
+  | { type: "delete-time-entry"; id: string }
+  | { type: "add-email-thread"; thread: EmailThread }
+  | { type: "email-message"; threadId: string; message: EmailMessage }
+  | { type: "mark-thread-read"; id: string }
+  | { type: "delete-email-thread"; id: string }
+  | { type: "set-inbound-address"; address: string }
   | { type: "add-contract"; contract: Contract }
   | { type: "update-contract"; id: string; patch: Partial<Contract> }
   | { type: "add-ticket"; ticket: Ticket }
@@ -133,6 +148,7 @@ type Action =
   | { type: "set-open-request"; request: OpenRequest | null }
   | { type: "add-team-member"; member: CrmState["team"][number] }
   | { type: "remove-team-member"; id: string }
+  | { type: "set-team-role"; id: string; role: TeamRole }
   | { type: "save-proposal"; proposal: Proposal }
   | { type: "delete-proposal"; id: string }
   | { type: "save-doc"; article: DocArticle }
@@ -151,6 +167,9 @@ function emptyState(base: CrmState): CrmState {
     activities: [],
     events: [],
     invoices: [],
+    retainers: [],
+    timeEntries: [],
+    emailThreads: [],
     contracts: [],
     tickets: [],
     deliverables: [],
@@ -302,6 +321,13 @@ function reducer(state: CrmState, action: Action): CrmState {
       };
     case "add-task":
       return { ...state, tasks: [action.task, ...state.tasks] };
+    case "update-task":
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.id === action.id ? { ...t, ...action.patch } : t,
+        ),
+      };
     case "toggle-task":
       return {
         ...state,
@@ -337,6 +363,69 @@ function reducer(state: CrmState, action: Action): CrmState {
             ? { ...i, status: "paid", paidAt: action.at }
             : i,
         ),
+      };
+    case "save-retainer": {
+      const exists = state.retainers.some((r) => r.id === action.retainer.id);
+      return {
+        ...state,
+        retainers: exists
+          ? state.retainers.map((r) =>
+              r.id === action.retainer.id ? action.retainer : r,
+            )
+          : [action.retainer, ...state.retainers],
+      };
+    }
+    case "delete-retainer":
+      return {
+        ...state,
+        retainers: state.retainers.filter((r) => r.id !== action.id),
+        timeEntries: state.timeEntries.map((t) =>
+          t.retainerId === action.id ? { ...t, retainerId: null } : t,
+        ),
+      };
+    case "add-time-entry":
+      return { ...state, timeEntries: [action.entry, ...state.timeEntries] };
+    case "delete-time-entry":
+      return {
+        ...state,
+        timeEntries: state.timeEntries.filter((t) => t.id !== action.id),
+      };
+    case "add-email-thread":
+      return { ...state, emailThreads: [action.thread, ...state.emailThreads] };
+    case "email-message":
+      return {
+        ...state,
+        emailThreads: state.emailThreads
+          .map((t) =>
+            t.id === action.threadId
+              ? {
+                  ...t,
+                  messages: [...t.messages, action.message],
+                  lastMessageAt: action.message.at,
+                  lastDirection: action.message.direction,
+                  snippet: action.message.bodyText.slice(0, 140),
+                  unread: action.message.direction === "in",
+                }
+              : t,
+          )
+          .sort((a, b) => b.lastMessageAt - a.lastMessageAt),
+      };
+    case "mark-thread-read":
+      return {
+        ...state,
+        emailThreads: state.emailThreads.map((t) =>
+          t.id === action.id ? { ...t, unread: false } : t,
+        ),
+      };
+    case "delete-email-thread":
+      return {
+        ...state,
+        emailThreads: state.emailThreads.filter((t) => t.id !== action.id),
+      };
+    case "set-inbound-address":
+      return {
+        ...state,
+        workspace: { ...state.workspace, inboundAddress: action.address },
       };
     case "add-contract":
       return { ...state, contracts: [action.contract, ...state.contracts] };
@@ -456,6 +545,16 @@ function reducer(state: CrmState, action: Action): CrmState {
       return { ...state, team: [...state.team, action.member] };
     case "remove-team-member":
       return { ...state, team: state.team.filter((m) => m.id !== action.id) };
+    case "set-team-role":
+      return {
+        ...state,
+        team: state.team.map((m) =>
+          // Owner rows never change here; ownership transfer is a separate flow.
+          m.id === action.id && m.role !== "Owner"
+            ? { ...m, role: action.role }
+            : m,
+        ),
+      };
     case "save-proposal": {
       const exists = state.proposals.some((p) => p.id === action.proposal.id);
       return {
@@ -873,6 +972,8 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
           createdAt: Date.now(),
         },
       }),
+    updateTask: (id: string, patch: Partial<Pick<Task, "title" | "dueAt">>) =>
+      dispatch({ type: "update-task", id, patch }),
     toggleTask: (id: string) => dispatch({ type: "toggle-task", id }),
     deleteTask: (id: string) => dispatch({ type: "delete-task", id }),
 
@@ -935,6 +1036,18 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
       });
       return invoice;
     },
+    /** Demo reminder — no real email engine, so it only logs the touch. */
+    sendInvoiceReminder: (id: string) => {
+      const invoice = state.invoices.find((i) => i.id === id);
+      if (!invoice || invoice.status !== "due") return;
+      logActivity({
+        type: "email",
+        summary: `Payment reminder sent for ${invoice.number} — ${invoice.label}.`,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+        clientVisible: true,
+      });
+    },
     /** Demo payment — flips a due invoice to paid and tells both sides. */
     payInvoice: (id: string) => {
       const invoice = state.invoices.find((i) => i.id === id);
@@ -953,6 +1066,184 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         companyId: invoice.companyId,
       });
     },
+
+    /** Create or edit a retainer. Scheduling follows active + autoInvoice. */
+    saveRetainer: (input: {
+      id?: string;
+      companyId: string;
+      name: string;
+      amount: number;
+      includedHours: number;
+      billingDay: number;
+      active?: boolean;
+      autoInvoice?: boolean;
+      notes?: string;
+    }) => {
+      const existing = input.id
+        ? state.retainers.find((r) => r.id === input.id)
+        : undefined;
+      const active = input.active ?? existing?.active ?? true;
+      const autoInvoice = input.autoInvoice ?? existing?.autoInvoice ?? true;
+      const retainer: Retainer = {
+        id: input.id ?? uid(),
+        companyId: input.companyId,
+        name: input.name,
+        amount: input.amount,
+        includedHours: input.includedHours,
+        billingDay: input.billingDay,
+        active,
+        autoInvoice,
+        // Keep an existing schedule when the billing day didn't change.
+        nextInvoiceOn: !active || !autoInvoice
+          ? null
+          : existing?.billingDay === input.billingDay && existing.nextInvoiceOn
+            ? existing.nextInvoiceOn
+            : nextBillingDate(input.billingDay),
+        notes: input.notes?.trim() ?? existing?.notes ?? "",
+        createdAt: existing?.createdAt ?? Date.now(),
+      };
+      dispatch({ type: "save-retainer", retainer });
+      return retainer;
+    },
+    deleteRetainer: (id: string) => dispatch({ type: "delete-retainer", id }),
+    /** Generate this period's invoice now and advance the schedule. */
+    billRetainer: (id: string) => {
+      const retainer = state.retainers.find((r) => r.id === id);
+      if (!retainer || !retainer.active) return;
+      const now = Date.now();
+      const period = new Date(
+        retainer.nextInvoiceOn ?? now,
+      ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      dispatch({
+        type: "add-invoice",
+        invoice: {
+          id: uid(),
+          number: nextInvoiceNumber(state.invoices),
+          companyId: retainer.companyId,
+          dealId: null,
+          label: `${retainer.name} — ${period}`,
+          amount: retainer.amount,
+          issuedAt: now,
+          dueAt: now + 14 * DAY,
+          paidAt: null,
+          status: "due",
+        },
+      });
+      if (retainer.nextInvoiceOn !== null) {
+        const from = new Date(retainer.nextInvoiceOn);
+        dispatch({
+          type: "save-retainer",
+          retainer: {
+            ...retainer,
+            nextInvoiceOn: new Date(
+              from.getFullYear(),
+              from.getMonth() + 1,
+              retainer.billingDay,
+            ).getTime(),
+          },
+        });
+      }
+      logActivity({
+        type: "system",
+        summary: `Retainer invoiced: ${retainer.name}.`,
+        companyId: retainer.companyId,
+        clientVisible: true,
+      });
+    },
+
+    logTime: (input: {
+      companyId?: string | null;
+      retainerId?: string | null;
+      taskId?: string | null;
+      dealId?: string | null;
+      minutes: number;
+      note?: string;
+      entryDate?: number;
+      billable?: boolean;
+    }) => {
+      const entry: TimeEntry = {
+        id: uid(),
+        companyId: input.companyId ?? null,
+        retainerId: input.retainerId ?? null,
+        taskId: input.taskId ?? null,
+        dealId: input.dealId ?? null,
+        author: state.team[0]?.name ?? "You",
+        minutes: Math.round(input.minutes),
+        note: input.note?.trim() ?? "",
+        entryDate: input.entryDate ?? Date.now(),
+        billable: input.billable ?? true,
+        createdAt: Date.now(),
+      };
+      dispatch({ type: "add-time-entry", entry });
+      return entry;
+    },
+    deleteTimeEntry: (id: string) =>
+      dispatch({ type: "delete-time-entry", id }),
+
+    /** Compose or reply. Returns the thread id the message landed in. */
+    sendEmail: async (input: {
+      threadId?: string | null;
+      contactId?: string | null;
+      leadId?: string | null;
+      to: string[];
+      subject: string;
+      body: string;
+    }): Promise<string | null> => {
+      const to = input.to.map((t) => t.trim()).filter(Boolean);
+      const body = input.body.trim();
+      if (to.length === 0 || !body) return null;
+      let thread = input.threadId
+        ? state.emailThreads.find((t) => t.id === input.threadId)
+        : undefined;
+      if (!thread) {
+        const contact = input.contactId
+          ? state.contacts.find((c) => c.id === input.contactId)
+          : undefined;
+        thread = {
+          id: uid(),
+          subject: input.subject.trim() || "(no subject)",
+          contactId: contact?.id ?? null,
+          companyId: contact?.companyId ?? null,
+          leadId: input.leadId ?? null,
+          lastMessageAt: Date.now(),
+          lastDirection: "out",
+          snippet: body.slice(0, 140),
+          unread: false,
+          createdAt: Date.now(),
+          messages: [],
+        };
+        dispatch({ type: "add-email-thread", thread });
+      }
+      dispatch({
+        type: "email-message",
+        threadId: thread.id,
+        message: {
+          id: uid(),
+          direction: "out",
+          fromEmail: "hello@frankolabs.com",
+          fromName: state.team[0]?.name ?? "Franko Labs",
+          toEmails: to,
+          bodyText: body,
+          at: Date.now(),
+        },
+      });
+      logActivity({
+        type: "email",
+        summary: `Email sent to ${to.join(", ")} — "${thread.subject}".`,
+        contactId: thread.contactId,
+        companyId: thread.companyId,
+      });
+      return thread.id;
+    },
+    markThreadRead: (id: string) => {
+      const thread = state.emailThreads.find((t) => t.id === id);
+      if (!thread || !thread.unread) return;
+      dispatch({ type: "mark-thread-read", id });
+    },
+    deleteEmailThread: (id: string) =>
+      dispatch({ type: "delete-email-thread", id }),
+    setInboundAddress: (address: string) =>
+      dispatch({ type: "set-inbound-address", address: address.trim() }),
 
     sendContract: (input: {
       companyId: string;
@@ -1254,6 +1545,8 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
     },
     removeTeamMember: (id: string) =>
       dispatch({ type: "remove-team-member", id }),
+    setTeamRole: (id: string, role: TeamRole) =>
+      dispatch({ type: "set-team-role", id, role }),
 
     inviteClient: async (
       _companyId?: string,
@@ -1607,6 +1900,9 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
             "tickets",
             "deliverables",
             "contracts",
+            "email_threads",
+            "time_entries",
+            "retainers",
             "invoices",
             "deals",
             "events",
@@ -1932,6 +2228,18 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
         }),
       );
     },
+    updateTask: (id, patch) => {
+      local({ type: "update-task", id, patch });
+      write(() =>
+        db
+          .from("tasks")
+          .update({
+            ...(patch.title !== undefined && { title: patch.title }),
+            ...(patch.dueAt !== undefined && { due_at: iso(patch.dueAt) }),
+          })
+          .eq("id", id),
+      );
+    },
     toggleTask: (id) => {
       const task = getState().tasks.find((t) => t.id === id);
       if (!task) return;
@@ -2032,11 +2340,164 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
       );
       return invoice;
     },
+    sendInvoiceReminder: (id) => {
+      const invoice = getState().invoices.find((i) => i.id === id);
+      if (!invoice || invoice.status !== "due") return;
+      write(() => db.rpc("send_invoice_reminder", { p_invoice: id }));
+      logActivity({
+        type: "email",
+        summary: `Payment reminder sent for ${invoice.number} — ${invoice.label}.`,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+        clientVisible: true,
+      });
+    },
     payInvoice: (id) => {
       const invoice = getState().invoices.find((i) => i.id === id);
       if (!invoice || invoice.status !== "due") return;
       local({ type: "pay-invoice", id, at: Date.now() });
       write(() => db.rpc("pay_invoice", { p_invoice: id }));
+    },
+
+    saveRetainer: (input) => {
+      const existing = input.id
+        ? getState().retainers.find((r) => r.id === input.id)
+        : undefined;
+      const active = input.active ?? existing?.active ?? true;
+      const autoInvoice = input.autoInvoice ?? existing?.autoInvoice ?? true;
+      const retainer: Retainer = {
+        id: input.id ?? uid(),
+        companyId: input.companyId,
+        name: input.name,
+        amount: input.amount,
+        includedHours: input.includedHours,
+        billingDay: input.billingDay,
+        active,
+        autoInvoice,
+        nextInvoiceOn: !active || !autoInvoice
+          ? null
+          : existing?.billingDay === input.billingDay && existing.nextInvoiceOn
+            ? existing.nextInvoiceOn
+            : nextBillingDate(input.billingDay),
+        notes: input.notes?.trim() ?? existing?.notes ?? "",
+        createdAt: existing?.createdAt ?? Date.now(),
+      };
+      local({ type: "save-retainer", retainer });
+      write(() =>
+        db.from("retainers").upsert({
+          id: retainer.id,
+          workspace_id: ws(),
+          company_id: retainer.companyId,
+          name: retainer.name,
+          amount: retainer.amount,
+          included_hours: retainer.includedHours,
+          billing_day: retainer.billingDay,
+          active: retainer.active,
+          auto_invoice: retainer.autoInvoice,
+          next_invoice_on:
+            retainer.nextInvoiceOn === null
+              ? null
+              : new Date(retainer.nextInvoiceOn).toISOString().slice(0, 10),
+          notes: retainer.notes,
+          created_at: iso(retainer.createdAt),
+        }),
+      );
+      return retainer;
+    },
+    deleteRetainer: (id) => {
+      local({ type: "delete-retainer", id });
+      write(() => db.from("retainers").delete().eq("id", id));
+    },
+    billRetainer: (id) => {
+      const retainer = getState().retainers.find((r) => r.id === id);
+      if (!retainer || !retainer.active) return;
+      // The invoice, activity and schedule advance come back via realtime —
+      // the RPC does the whole step atomically (and emails the client).
+      write(() => db.rpc("bill_retainer", { p_retainer: id }));
+    },
+
+    logTime: (input) => {
+      const state = getState();
+      const entry: TimeEntry = {
+        id: uid(),
+        companyId: input.companyId ?? null,
+        retainerId: input.retainerId ?? null,
+        taskId: input.taskId ?? null,
+        dealId: input.dealId ?? null,
+        author:
+          state.team.find((m) => m.id === userId)?.name ??
+          state.team[0]?.name ??
+          "Teammate",
+        minutes: Math.round(input.minutes),
+        note: input.note?.trim() ?? "",
+        entryDate: input.entryDate ?? Date.now(),
+        billable: input.billable ?? true,
+        createdAt: Date.now(),
+      };
+      local({ type: "add-time-entry", entry });
+      write(() =>
+        db.from("time_entries").insert({
+          id: entry.id,
+          workspace_id: ws(),
+          company_id: entry.companyId,
+          retainer_id: entry.retainerId,
+          task_id: entry.taskId,
+          deal_id: entry.dealId,
+          user_id: userId,
+          author: entry.author,
+          minutes: entry.minutes,
+          note: entry.note,
+          entry_date: new Date(entry.entryDate).toISOString().slice(0, 10),
+          billable: entry.billable,
+        }),
+      );
+      return entry;
+    },
+    deleteTimeEntry: (id) => {
+      local({ type: "delete-time-entry", id });
+      write(() => db.from("time_entries").delete().eq("id", id));
+    },
+
+    sendEmail: async (input) => {
+      const to = input.to.map((t) => t.trim()).filter(Boolean);
+      const body = input.body.trim();
+      if (to.length === 0 || !body) return null;
+      // No optimistic append: the RPC creates the message (and possibly the
+      // thread) server-side, and realtime delivers both within the second.
+      const { data, error } = await db.rpc("send_thread_email", {
+        p_workspace: ws(),
+        p_thread: (input.threadId ?? null) as unknown as string,
+        p_contact: (input.contactId ?? null) as unknown as string,
+        p_lead: (input.leadId ?? null) as unknown as string,
+        p_to: to,
+        p_subject: input.subject,
+        p_body: body,
+      });
+      if (error) {
+        console.error("sendEmail:", error.message);
+        return null;
+      }
+      return data ?? null;
+    },
+    markThreadRead: (id) => {
+      const thread = getState().emailThreads.find((t) => t.id === id);
+      if (!thread || !thread.unread) return;
+      local({ type: "mark-thread-read", id });
+      write(() => db.from("email_threads").update({ unread: false }).eq("id", id));
+    },
+    deleteEmailThread: (id) => {
+      local({ type: "delete-email-thread", id });
+      write(() => db.from("email_threads").delete().eq("id", id));
+    },
+    setInboundAddress: (address) => {
+      const trimmed = address.trim();
+      local({ type: "set-inbound-address", address: trimmed });
+      write(() =>
+        db
+          .from("workspaces")
+          .update({ inbound_address: trimmed || null })
+          .eq("id", ws()),
+      );
     },
 
     sendContract: (input) => {
@@ -2370,6 +2831,18 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
           .delete()
           .eq("workspace_id", ws())
           .eq("user_id", id),
+      );
+    },
+    setTeamRole: (id, role) => {
+      if (role === "Owner") return; // ownership transfer is a separate flow
+      local({ type: "set-team-role", id, role });
+      write(() =>
+        db
+          .from("workspace_members")
+          .update({ role: role.toLowerCase() })
+          .eq("workspace_id", ws())
+          .eq("user_id", id)
+          .neq("role", "owner"),
       );
     },
 

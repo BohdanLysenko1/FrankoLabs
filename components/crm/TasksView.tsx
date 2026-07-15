@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarClock, ListChecks, Plus, Trash2 } from "lucide-react";
+import { AlarmClockPlus, CalendarClock, ListChecks, Plus, Timer, Trash2 } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
 import { DAY, relTime, type Task } from "@/lib/crm/types";
+import TimeLogModal from "./TimeLogModal";
 import {
   Card,
   EmptyState,
@@ -15,7 +16,15 @@ import {
   inputCls,
 } from "./ui";
 
-function TaskRow({ task, now }: { task: Task; now: number }) {
+function TaskRow({
+  task,
+  now,
+  onLogTime,
+}: {
+  task: Task;
+  now: number;
+  onLogTime: () => void;
+}) {
   const { actions } = useCrm();
   const { dealById, contactById } = useCrmLookups();
   const deal = task.dealId ? dealById.get(task.dealId) : null;
@@ -47,6 +56,24 @@ function TaskRow({ task, now }: { task: Task; now: number }) {
           {!deal && contact && <span>{contact.name}</span>}
         </p>
       </div>
+      <button
+        onClick={onLogTime}
+        aria-label="Log time"
+        title="Log time"
+        className="shrink-0 rounded-lg p-1.5 text-ink-faint opacity-0 transition hover:bg-surface-2 hover:text-accent group-hover:opacity-100"
+      >
+        <Timer className="size-4" />
+      </button>
+      {overdue && (
+        <button
+          onClick={() => actions.updateTask(task.id, { dueAt: now + DAY })}
+          aria-label="Snooze to tomorrow"
+          title="Snooze to tomorrow"
+          className="shrink-0 rounded-lg p-1.5 text-ink-faint opacity-0 transition hover:bg-surface-2 hover:text-warn group-hover:opacity-100"
+        >
+          <AlarmClockPlus className="size-4" />
+        </button>
+      )}
       <button
         onClick={() => actions.deleteTask(task.id)}
         aria-label="Delete task"
@@ -134,6 +161,7 @@ function NewTaskModal({ onClose }: { onClose: () => void }) {
 export default function TasksView() {
   const { state, actions } = useCrm();
   const [localAdding, setLocalAdding] = useState(false);
+  const [loggingFor, setLoggingFor] = useState<Task | null>(null);
   const [now] = useState(() => Date.now());
 
   // Command palette "New task" lands here via the store.
@@ -204,7 +232,12 @@ export default function TasksView() {
                 </p>
                 <Card className="mt-2 divide-y divide-edge">
                   {section.items.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} />
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      now={now}
+                      onLogTime={() => setLoggingFor(t)}
+                    />
                   ))}
                 </Card>
               </div>
@@ -213,6 +246,16 @@ export default function TasksView() {
       )}
 
       {adding && <NewTaskModal onClose={closeAdding} />}
+      {loggingFor && (
+        <TimeLogModal
+          onClose={() => setLoggingFor(null)}
+          prefill={{
+            taskId: loggingFor.id,
+            dealId: loggingFor.dealId,
+            note: loggingFor.title,
+          }}
+        />
+      )}
     </div>
   );
 }

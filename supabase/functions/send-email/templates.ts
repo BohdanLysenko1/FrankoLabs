@@ -67,6 +67,20 @@ export function renderEmail(event: string, p: Payload, appBaseUrl: string): Rend
           portal,
         ),
       };
+    case "invoice-reminder": {
+      const overdue = Date.parse(s(p.dueAt)) < Date.now();
+      return {
+        subject: `Reminder: invoice ${s(p.invoiceNumber)} is ${overdue ? "overdue" : "due soon"} — ${money(p.amount)}`,
+        html: layout(
+          overdue ? "Invoice overdue" : "Payment reminder",
+          `A friendly reminder about invoice <strong style="color:#e4e4e7">${esc(p.invoiceNumber)}</strong> for ${company}.` +
+            row("For", esc(p.label)) +
+            row("Amount", money(p.amount)) +
+            row(overdue ? "Was due" : "Due", date(p.dueAt)),
+          portal,
+        ),
+      };
+    }
     case "invoice-paid":
       return {
         subject: `Invoice ${s(p.invoiceNumber)} paid — ${money(p.amount)}`,
@@ -162,6 +176,23 @@ export function renderEmail(event: string, p: Payload, appBaseUrl: string): Rend
           crm,
         ),
       };
+    case "thread-email": {
+      // Personal correspondence from the Mail app — plain paragraphs, light
+      // branding, so it reads like a written email rather than a notification.
+      const paragraphs = s(p.body)
+        .split(/\n{2,}/)
+        .map((para) => `<p style="margin:0 0 14px">${esc(para).replace(/\n/g, "<br>")}</p>`)
+        .join("");
+      return {
+        subject: s(p.subject) || "(no subject)",
+        html: `<!doctype html><html><body style="margin:0;padding:24px 16px;background:#ffffff">
+<div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.65;color:#1f2937">
+${paragraphs}
+<p style="margin:20px 0 0;color:#6b7280">${esc(p.fromName) || "Franko Labs"}<br><span style="font-size:13px;color:#9ca3af">Franko Labs</span></p>
+</div>
+</body></html>`,
+      };
+    }
     case "lead-intake-confirm":
       return {
         subject: "We got your request — Franko Labs",

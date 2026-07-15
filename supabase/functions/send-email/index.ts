@@ -61,13 +61,29 @@ Deno.serve(async (req: Request) => {
       const to = redirectTo ? [redirectTo] : row.recipients;
       const finalSubject = redirectTo ? `[to: ${row.recipients.join(", ")}] ${subject}` : subject;
 
+      // Mail-app threads carry RFC threading headers and route replies back
+      // to the workspace's Resend-inbound address.
+      const p = row.payload ?? {};
+      const headers: Record<string, string> = {};
+      if (typeof p.messageId === "string" && p.messageId) headers["Message-ID"] = p.messageId;
+      if (typeof p.inReplyTo === "string" && p.inReplyTo) headers["In-Reply-To"] = p.inReplyTo;
+      if (typeof p.references === "string" && p.references) headers["References"] = p.references;
+      const replyTo = typeof p.replyTo === "string" && p.replyTo ? p.replyTo : undefined;
+
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${config.resend_api_key}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ from: config.email_from, to, subject: finalSubject, html }),
+        body: JSON.stringify({
+          from: config.email_from,
+          to,
+          subject: finalSubject,
+          html,
+          ...(Object.keys(headers).length > 0 && { headers }),
+          ...(replyTo && { reply_to: replyTo }),
+        }),
       });
 
       if (res.ok) {

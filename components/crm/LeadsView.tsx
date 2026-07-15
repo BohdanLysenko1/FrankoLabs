@@ -21,6 +21,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { useCrm, type NewLeadInput } from "@/lib/crm/store";
+import { downloadCsv } from "@/lib/crm/csv";
 import {
   DAY,
   LEAD_STATUSES,
@@ -188,27 +189,24 @@ export function parseLeadsPaste(text: string): NewLeadInput[] {
 /* CSV export                                                          */
 /* ------------------------------------------------------------------ */
 
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
-
 function downloadLeadsCsv(leads: Lead[]) {
-  const header = [
-    "name",
-    "email",
-    "phone",
-    "role",
-    "company",
-    "website",
-    "source",
-    "status",
-    "tags",
-    "notes",
-    "last_contacted",
-    "added",
-  ];
-  const rows = leads.map((l) =>
+  downloadCsv(
+    "leads",
     [
+      "name",
+      "email",
+      "phone",
+      "role",
+      "company",
+      "website",
+      "source",
+      "status",
+      "tags",
+      "notes",
+      "last_contacted",
+      "added",
+    ],
+    leads.map((l) => [
       l.name,
       l.email,
       l.phone,
@@ -221,19 +219,8 @@ function downloadLeadsCsv(leads: Lead[]) {
       l.notes,
       l.lastContactedAt ? new Date(l.lastContactedAt).toISOString() : "",
       new Date(l.createdAt).toISOString(),
-    ]
-      .map(csvCell)
-      .join(","),
+    ]),
   );
-  const blob = new Blob([[header.join(","), ...rows].join("\n")], {
-    type: "text/csv",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function ImportLeadsModal({

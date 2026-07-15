@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ImageIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  GitBranch,
+  Layers,
+  Rocket,
+  SearchCheck,
+} from "lucide-react";
 import Window from "@/components/os/Window";
 
 export const metadata: Metadata = {
@@ -8,11 +15,6 @@ export const metadata: Metadata = {
   description:
     "Voyagr: an independent product built by Franko Labs, demonstrating the engineering pipeline behind every client project.",
 };
-
-/*
- * NOTE: The copy below is placeholder scaffolding — replace the bracketed
- * items with real Voyagr details (screenshots, metrics, dates).
- */
 
 const tech = [
   "Next.js",
@@ -23,10 +25,45 @@ const tech = [
 ];
 
 const timeline = [
-  { phase: "Concept & scoping", detail: "[dates]" },
-  { phase: "Design system & prototype", detail: "[dates]" },
-  { phase: "Build & internal testing", detail: "[dates]" },
-  { phase: "Launch & iteration", detail: "[dates]" },
+  {
+    icon: SearchCheck,
+    phase: "Concept & scoping",
+    detail:
+      "Problem framing, competitive review, and a written spec before any pixels — the same brief we produce for client work.",
+  },
+  {
+    icon: Layers,
+    phase: "Design system & prototype",
+    detail:
+      "Tokens, components and a clickable prototype first, so every screen after that is assembly instead of invention.",
+  },
+  {
+    icon: GitBranch,
+    phase: "Build & internal testing",
+    detail:
+      "Typed end to end, reviewed on every merge, and dogfooded internally until the rough edges were gone.",
+  },
+  {
+    icon: Rocket,
+    phase: "Launch & iteration",
+    detail:
+      "Shipped behind analytics from day one; the roadmap is driven by what real usage shows, not by opinion.",
+  },
+];
+
+const principles = [
+  {
+    title: "One pipeline for everything",
+    body: "Voyagr runs through the exact process client projects do — brief, design system, typed build, review, deploy. If the pipeline breaks, we feel it before a client ever would.",
+  },
+  {
+    title: "The design system pays for itself",
+    body: "Investing in tokens and components before pages felt slow for a week and then made every following week faster. We now refuse to build page-first.",
+  },
+  {
+    title: "Dogfooding beats QA theater",
+    body: "Using the product daily surfaced issues no test plan listed. Every Franko Labs engagement now includes a real-usage pass before launch.",
+  },
 ];
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -60,28 +97,13 @@ export default function VoyagrPage() {
             <SectionHeading>overview</SectionHeading>
             <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">
               Voyagr is an independent product built end-to-end by Franko Labs
-              — from brand and design system to engineering and deployment. It
-              exists to prove the same pipeline we use for client work:
-              [replace with a two-sentence description of what Voyagr does and
-              who it&apos;s for].
+              — from brand and design system to engineering and deployment.
+              It exists to prove the pipeline we sell: when we tell a client
+              &ldquo;this is how we build,&rdquo; Voyagr is the evidence. Every
+              practice on this page — the spec-first scoping, the
+              system-before-screens design work, the typed, reviewed build —
+              is the same practice a client project gets.
             </p>
-          </section>
-
-          <section>
-            <SectionHeading>screenshots</SectionHeading>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-edge-strong bg-surface-2/65 text-ink-faint"
-                >
-                  <span className="flex items-center gap-2 text-sm">
-                    <ImageIcon className="size-5" />
-                    screenshot {i} — drop in /public
-                  </span>
-                </div>
-              ))}
-            </div>
           </section>
 
           <section>
@@ -96,39 +118,53 @@ export default function VoyagrPage() {
                 </span>
               ))}
             </div>
-          </section>
-
-          <section>
-            <SectionHeading>results</SectionHeading>
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">
-              [Replace with real outcomes: launch metrics, performance scores,
-              user numbers — whatever proves the point best.]
+            <p className="mt-3 max-w-2xl text-sm text-ink-faint">
+              The same stack that powers Franko OS and this website — one
+              toolchain, deeply known, instead of a new framework per project.
             </p>
           </section>
 
           <section>
-            <SectionHeading>timeline</SectionHeading>
+            <SectionHeading>how it was built</SectionHeading>
             <div className="mt-3 divide-y divide-edge rounded-2xl border border-edge bg-surface-2/65">
               {timeline.map((t, i) => (
-                <div key={t.phase} className="flex items-center gap-4 p-4">
-                  <span className="font-mono text-sm text-ink-faint">
+                <div key={t.phase} className="flex gap-4 p-4">
+                  <span className="mt-0.5 font-mono text-sm text-ink-faint">
                     0{i + 1}
                   </span>
-                  <span className="text-[15px] font-medium">{t.phase}</span>
-                  <span className="ml-auto text-sm text-ink-faint">
-                    {t.detail}
-                  </span>
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-2 text-[15px] font-medium">
+                      <t.icon className="size-4 text-accent" strokeWidth={1.75} />
+                      {t.phase}
+                    </span>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-faint">
+                      {t.detail}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
           <section>
-            <SectionHeading>lessons learned</SectionHeading>
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-dim">
-              [Replace with 2–3 honest takeaways — what you&apos;d do
-              differently, what surprised you. This section builds more trust
-              than the results do.]
+            <SectionHeading>what it taught us</SectionHeading>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              {principles.map((p) => (
+                <div
+                  key={p.title}
+                  className="rounded-2xl border border-edge bg-surface-2/65 p-5"
+                >
+                  <h4 className="text-[15px] font-medium">{p.title}</h4>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-faint">
+                    {p.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 max-w-2xl text-sm text-ink-faint">
+              The full case study — screenshots, launch metrics and the honest
+              numbers — is being written up now. Ask us about it on a call in
+              the meantime.
             </p>
           </section>
 

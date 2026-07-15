@@ -554,6 +554,72 @@ export type Database = {
           },
         ]
       }
+      email_messages: {
+        Row: {
+          at: string
+          body_html: string
+          body_text: string
+          created_at: string
+          direction: string
+          from_email: string
+          from_name: string
+          id: string
+          in_reply_to: string
+          message_id: string
+          subject: string
+          thread_id: string
+          to_emails: string[]
+          workspace_id: string
+        }
+        Insert: {
+          at?: string
+          body_html?: string
+          body_text?: string
+          created_at?: string
+          direction: string
+          from_email?: string
+          from_name?: string
+          id?: string
+          in_reply_to?: string
+          message_id?: string
+          subject?: string
+          thread_id: string
+          to_emails?: string[]
+          workspace_id: string
+        }
+        Update: {
+          at?: string
+          body_html?: string
+          body_text?: string
+          created_at?: string
+          direction?: string
+          from_email?: string
+          from_name?: string
+          id?: string
+          in_reply_to?: string
+          message_id?: string
+          subject?: string
+          thread_id?: string
+          to_emails?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_messages_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_outbox: {
         Row: {
           attempts: number
@@ -594,6 +660,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "email_outbox_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_threads: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          id: string
+          last_direction: string
+          last_message_at: string
+          lead_id: string | null
+          snippet: string
+          subject: string
+          unread: boolean
+          workspace_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          last_direction?: string
+          last_message_at?: string
+          lead_id?: string | null
+          snippet?: string
+          subject?: string
+          unread?: boolean
+          workspace_id: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          last_direction?: string
+          last_message_at?: string
+          lead_id?: string | null
+          snippet?: string
+          subject?: string
+          unread?: boolean
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -988,6 +1125,66 @@ export type Database = {
           },
         ]
       }
+      retainers: {
+        Row: {
+          active: boolean
+          amount: number
+          auto_invoice: boolean
+          billing_day: number
+          company_id: string
+          created_at: string
+          id: string
+          included_hours: number
+          name: string
+          next_invoice_on: string | null
+          notes: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          amount?: number
+          auto_invoice?: boolean
+          billing_day?: number
+          company_id: string
+          created_at?: string
+          id?: string
+          included_hours?: number
+          name: string
+          next_invoice_on?: string | null
+          notes?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          auto_invoice?: boolean
+          billing_day?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          included_hours?: number
+          name?: string
+          next_invoice_on?: string | null
+          notes?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retainers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retainers_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sites: {
         Row: {
           backups: Json
@@ -1275,6 +1472,90 @@ export type Database = {
           },
         ]
       }
+      time_entries: {
+        Row: {
+          author: string
+          billable: boolean
+          company_id: string | null
+          created_at: string
+          deal_id: string | null
+          entry_date: string
+          id: string
+          minutes: number
+          note: string
+          retainer_id: string | null
+          task_id: string | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          author?: string
+          billable?: boolean
+          company_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          entry_date?: string
+          id?: string
+          minutes: number
+          note?: string
+          retainer_id?: string | null
+          task_id?: string | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          author?: string
+          billable?: boolean
+          company_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          entry_date?: string
+          id?: string
+          minutes?: number
+          note?: string
+          retainer_id?: string | null
+          task_id?: string | null
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_retainer_id_fkey"
+            columns: ["retainer_id"]
+            isOneToOne: false
+            referencedRelation: "retainers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_items: {
         Row: {
           category: string
@@ -1369,6 +1650,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          inbound_address: string | null
           invoice_seq: number
           name: string
           onboarded: boolean
@@ -1378,6 +1660,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          inbound_address?: string | null
           invoice_seq?: number
           name?: string
           onboarded?: boolean
@@ -1387,6 +1670,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          inbound_address?: string | null
           invoice_seq?: number
           name?: string
           onboarded?: boolean
@@ -1399,6 +1683,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bill_retainer: { Args: { p_retainer: string }; Returns: string }
       create_contract: {
         Args: {
           p_amount: number
@@ -1453,6 +1738,7 @@ export type Database = {
         Returns: string
       }
       get_email_config: { Args: never; Returns: Json }
+      ingest_inbound_email: { Args: { p: Json }; Returns: string }
       mark_contract_viewed: { Args: { p_contract: string }; Returns: undefined }
       move_deal: {
         Args: { p_deal: string; p_stage: string }
@@ -1486,6 +1772,19 @@ export type Database = {
           p_secret: string
           p_url: string
           p_username: string
+          p_workspace: string
+        }
+        Returns: string
+      }
+      send_invoice_reminder: { Args: { p_invoice: string }; Returns: undefined }
+      send_thread_email: {
+        Args: {
+          p_body: string
+          p_contact: string
+          p_lead: string
+          p_subject: string
+          p_thread: string
+          p_to: string[]
           p_workspace: string
         }
         Returns: string

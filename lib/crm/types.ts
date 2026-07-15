@@ -298,6 +298,68 @@ export type Deliverable = {
   clientComment: string;
 };
 
+/** A recurring monthly engagement — invoiced automatically on billingDay. */
+export type Retainer = {
+  id: string;
+  companyId: string;
+  name: string;
+  /** USD per month. */
+  amount: number;
+  /** Hours bundled into the monthly fee — time entries burn against this. */
+  includedHours: number;
+  /** Day of month (1–28) the invoice generates. */
+  billingDay: number;
+  active: boolean;
+  /** False = track usage but never auto-generate invoices. */
+  autoInvoice: boolean;
+  /** When the next invoice generates; null until scheduling kicks in. */
+  nextInvoiceOn: number | null;
+  notes: string;
+  createdAt: number;
+};
+
+/** Logged work — rolls up against a retainer's included hours. */
+export type TimeEntry = {
+  id: string;
+  companyId: string | null;
+  retainerId: string | null;
+  taskId: string | null;
+  dealId: string | null;
+  author: string;
+  minutes: number;
+  note: string;
+  entryDate: number;
+  billable: boolean;
+  createdAt: number;
+};
+
+export type EmailDirection = "in" | "out";
+
+export type EmailMessage = {
+  id: string;
+  direction: EmailDirection;
+  fromEmail: string;
+  fromName: string;
+  toEmails: string[];
+  bodyText: string;
+  at: number;
+};
+
+/** A real correspondence thread — inbound mail lands here via Resend. */
+export type EmailThread = {
+  id: string;
+  subject: string;
+  contactId: string | null;
+  companyId: string | null;
+  leadId: string | null;
+  lastMessageAt: number;
+  lastDirection: EmailDirection;
+  snippet: string;
+  unread: boolean;
+  createdAt: number;
+  messages: EmailMessage[];
+};
+
 export type TeamRole = "Owner" | "Admin" | "Member";
 
 export type TeamMember = {
@@ -315,6 +377,8 @@ export type Workspace = {
   id: string;
   name: string;
   plan: PlanId;
+  /** Where Resend inbound routes replies for this workspace ("" = not set). */
+  inboundAddress: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -457,9 +521,15 @@ export type CrmState = {
   activities: Activity[];
   events: CalEvent[];
   invoices: Invoice[];
+  /** Recurring monthly engagements — auto-invoiced on their billing day. */
+  retainers: Retainer[];
+  /** Logged hours, burned against retainers. */
+  timeEntries: TimeEntry[];
   contracts: Contract[];
   tickets: Ticket[];
   deliverables: Deliverable[];
+  /** Real email correspondence (two-way via Resend inbound). */
+  emailThreads: EmailThread[];
   /**
    * Portal tool ids enabled per client company — what each client bought.
    * Kept as plain strings so the CRM core doesn't depend on the portal's
@@ -532,6 +602,31 @@ export function relTime(at: number, now: number = Date.now()): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return days === 1 ? "yesterday" : `${days}d ago`;
+}
+
+export function fmtMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+/** Next occurrence of a retainer's billing day (local midnight), >= today. */
+export function nextBillingDate(billingDay: number, now: number = Date.now()): number {
+  const t = new Date(now);
+  t.setHours(0, 0, 0, 0);
+  const candidate = new Date(t.getFullYear(), t.getMonth(), billingDay);
+  if (candidate.getTime() >= t.getTime()) return candidate.getTime();
+  return new Date(t.getFullYear(), t.getMonth() + 1, billingDay).getTime();
+}
+
+/** Start of the current retainer period: latest billing day <= today. */
+export function retainerPeriodStart(billingDay: number, now: number = Date.now()): number {
+  const t = new Date(now);
+  t.setHours(0, 0, 0, 0);
+  const candidate = new Date(t.getFullYear(), t.getMonth(), billingDay);
+  if (candidate.getTime() <= t.getTime()) return candidate.getTime();
+  return new Date(t.getFullYear(), t.getMonth() - 1, billingDay).getTime();
 }
 
 export function initials(name: string): string {

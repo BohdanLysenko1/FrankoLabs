@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   Building2,
   Check,
+  Download,
   Kanban,
   Mail,
   MessageSquare,
@@ -16,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
+import { downloadCsv } from "@/lib/crm/csv";
 import {
   fmtMoney,
   relTime,
@@ -439,6 +441,28 @@ export default function ContactsView() {
         title="Contacts"
         subtitle={`${state.contacts.length} people across ${state.companies.length} companies.`}
       >
+        <GhostButton
+          onClick={() =>
+            downloadCsv(
+              "contacts",
+              ["name", "email", "phone", "role", "company", "tags", "notes", "added"],
+              filtered.map((c) => [
+                c.name,
+                c.email,
+                c.phone,
+                c.role,
+                (c.companyId && companyById.get(c.companyId)?.name) || "",
+                c.tags.join("; "),
+                c.notes,
+                new Date(c.createdAt).toISOString(),
+              ]),
+            )
+          }
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-4" />
+          Export
+        </GhostButton>
         <PrimaryButton onClick={() => setLocalAdding(true)}>
           <Plus className="size-4" />
           New contact
