@@ -20,8 +20,12 @@ import {
   fmtDate,
   fmtMinutes,
   fmtMoney,
+  invoiceBalance,
+  invoiceOverdue,
   retainerPeriodStart,
+  PAYMENT_METHOD_LABELS,
   type Invoice,
+  type PaymentMethod,
   type Retainer,
 } from "@/lib/crm/types";
 import TimeLogModal from "./TimeLogModal";
@@ -36,11 +40,21 @@ import {
   inputCls,
 } from "./ui";
 
-function InvoiceRow({ invoice, now }: { invoice: Invoice; now: number }) {
-  const { actions } = useCrm();
+function InvoiceRow({
+  invoice,
+  now,
+  onRecord,
+}: {
+  invoice: Invoice;
+  now: number;
+  onRecord: () => void;
+}) {
+  const { state, actions } = useCrm();
   const { companyById } = useCrmLookups();
   const company = companyById.get(invoice.companyId);
-  const overdue = invoice.status === "due" && invoice.dueAt < now;
+  const overdue = invoiceOverdue(invoice, now);
+  const balance = invoiceBalance(invoice, state.payments);
+  const payments = state.payments.filter((p) => p.invoiceId === invoice.id);
   const [reminded, setReminded] = useState(false);
 
   const remind = () => {
@@ -49,53 +63,172 @@ function InvoiceRow({ invoice, now }: { invoice: Invoice; now: number }) {
     setReminded(true);
   };
 
+  const statusLine =
+    invoice.status === "paid"
+      ? `paid · ${fmtDate(invoice.paidAt ?? invoice.issuedAt)}`
+      : invoice.status === "partial"
+        ? `${overdue ? "overdue" : "partial"} · ${fmtMoney(balance)} left · due ${fmtDate(invoice.dueAt)}`
+        : `${overdue ? "overdue" : "due"} · ${fmtDate(invoice.dueAt)}`;
+
   return (
-    <div className="flex items-center gap-3.5 p-4">
-      <Receipt className="size-4 shrink-0 text-ink-faint" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
-          {invoice.number}
-          <span className="ml-2 font-normal text-ink-dim">{invoice.label}</span>
-        </p>
-        <p className="truncate text-xs text-ink-faint">
-          {company?.name ?? "—"} · issued {fmtDate(invoice.issuedAt)}
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="font-mono text-sm tabular-nums">
-          {fmtMoney(invoice.amount)}
-        </p>
-        <p
-          className={`text-[11px] font-medium ${
-            invoice.status === "paid"
-              ? "text-accent"
-              : overdue
-                ? "text-danger"
-                : "text-warn"
-          }`}
-        >
-          {invoice.status === "paid"
-            ? `paid · ${fmtDate(invoice.paidAt ?? invoice.issuedAt)}`
-            : `${overdue ? "overdue" : "due"} · ${fmtDate(invoice.dueAt)}`}
-        </p>
-      </div>
-      {invoice.status === "due" && (
-        <div className="flex shrink-0 items-center gap-1.5">
-          <GhostButton
-            onClick={remind}
-            disabled={reminded}
-            className={overdue ? "text-warn" : ""}
+    <div>
+      <div className="flex items-center gap-3.5 p-4">
+        <Receipt className="size-4 shrink-0 text-ink-faint" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">
+            {invoice.number}
+            <span className="ml-2 font-normal text-ink-dim">{invoice.label}</span>
+          </p>
+          <p className="truncate text-xs text-ink-faint">
+            {company?.name ?? "—"} · issued {fmtDate(invoice.issuedAt)}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-mono text-sm tabular-nums">
+            {fmtMoney(invoice.amount)}
+          </p>
+          <p
+            className={`text-[11px] font-medium ${
+              invoice.status === "paid"
+                ? "text-accent"
+                : overdue
+                  ? "text-danger"
+                  : "text-warn"
+            }`}
           >
-            <BellRing className="size-3.5" />
-            {reminded ? "Reminder sent" : "Remind"}
-          </GhostButton>
-          <GhostButton onClick={() => actions.payInvoice(invoice.id)}>
-            <Check className="size-3.5" />
-            Mark paid
-          </GhostButton>
+            {statusLine}
+          </p>
+        </div>
+        {invoice.status !== "paid" && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <GhostButton
+              onClick={remind}
+              disabled={reminded}
+              className={overdue ? "text-warn" : ""}
+            >
+              <BellRing className="size-3.5" />
+              {reminded ? "Reminder sent" : "Remind"}
+            </GhostButton>
+            <GhostButton onClick={onRecord}>
+              <Plus className="size-3.5" />
+              Record payment
+            </GhostButton>
+            <GhostButton onClick={() => actions.payInvoice(invoice.id)}>
+              <Check className="size-3.5" />
+              Mark paid
+            </GhostButton>
+          </div>
+        )}
+      </div>
+      {payments.length > 0 && (
+        <div className="space-y-1 px-4 pb-3 pl-11">
+          {payments.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center gap-2 text-xs text-ink-dim"
+            >
+              <Check className="size-3 shrink-0 text-accent" />
+              <span className="min-w-0 flex-1 truncate">
+                {fmtMoney(p.amount)} · {PAYMENT_METHOD_LABELS[p.method]} ·{" "}
+                {fmtDate(p.paidOn)}
+                {p.reference ? ` · ${p.reference}` : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() => actions.deletePayment(p.id)}
+                title="Remove payment"
+                className="text-ink-faint transition hover:text-danger"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+function RecordPaymentModal({
+  invoice,
+  onClose,
+}: {
+  invoice: Invoice;
+  onClose: () => void;
+}) {
+  const { state, actions } = useCrm();
+  const balance = invoiceBalance(invoice, state.payments);
+  const [amount, setAmount] = useState(String(balance));
+  const [method, setMethod] = useState<PaymentMethod>("bank-transfer");
+  const [paidOn, setPaidOn] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [reference, setReference] = useState("");
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const value = Math.round(Number(amount));
+    if (!Number.isFinite(value) || value <= 0) return;
+    actions.recordPayment({
+      invoiceId: invoice.id,
+      amount: value,
+      method,
+      paidOn: new Date(`${paidOn}T12:00:00`).getTime(),
+      reference,
+    });
+    onClose();
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`Record payment — ${invoice.number}`}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={`Amount (balance ${fmtMoney(balance)})`}>
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="numeric"
+              className={inputCls}
+              autoFocus
+            />
+          </Field>
+          <Field label="Method">
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+              className={inputCls}
+            >
+              {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Received on">
+            <input
+              type="date"
+              value={paidOn}
+              onChange={(e) => setPaidOn(e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Reference (optional)">
+            <input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Wire ref, check #…"
+              className={inputCls}
+            />
+          </Field>
+        </div>
+        <PrimaryButton type="submit" className="w-full justify-center">
+          Record payment
+        </PrimaryButton>
+      </form>
+    </Modal>
   );
 }
 
@@ -342,25 +475,40 @@ export default function BillingView() {
     { open: false } | { open: true; editing: Retainer | null }
   >({ open: false });
   const [loggingTime, setLoggingTime] = useState(false);
+  const [recordingFor, setRecordingFor] = useState<Invoice | null>(null);
 
   const companyDeals = state.deals.filter(
     (d) => d.companyId === companyId && !d.closedAt,
   );
 
-  const { outstanding, paid, collected30d } = useMemo(() => {
-    const due = state.invoices.filter((i) => i.status === "due");
+  const { outstanding, paid, collected30d, collectedAll } = useMemo(() => {
+    const unpaid = state.invoices.filter((i) => i.status !== "paid");
     const paidList = state.invoices.filter((i) => i.status === "paid");
+    // Paid invoices without ledger rows (imports, older saves) still count.
+    const ledgered = new Set(state.payments.map((p) => p.invoiceId));
+    const legacy = paidList.filter((i) => !ledgered.has(i.id));
+    const inWindow = (at: number) => at > now - 30 * DAY;
     return {
-      outstanding: due.reduce((s, i) => s + i.amount, 0),
+      outstanding: unpaid.reduce(
+        (s, i) => s + invoiceBalance(i, state.payments),
+        0,
+      ),
       paid: paidList,
-      collected30d: paidList
-        .filter((i) => (i.paidAt ?? 0) > now - 30 * DAY)
-        .reduce((s, i) => s + i.amount, 0),
+      collected30d:
+        state.payments
+          .filter((p) => inWindow(p.paidOn))
+          .reduce((s, p) => s + p.amount, 0) +
+        legacy
+          .filter((i) => inWindow(i.paidAt ?? 0))
+          .reduce((s, i) => s + i.amount, 0),
+      collectedAll:
+        state.payments.reduce((s, p) => s + p.amount, 0) +
+        legacy.reduce((s, i) => s + i.amount, 0),
     };
-  }, [state.invoices, now]);
+  }, [state.invoices, state.payments, now]);
 
   const dueInvoices = state.invoices
-    .filter((i) => i.status === "due")
+    .filter((i) => i.status !== "paid")
     .sort((a, b) => a.dueAt - b.dueAt);
   const paidInvoices = paid.sort((a, b) => (b.paidAt ?? 0) - (a.paidAt ?? 0));
 
@@ -394,7 +542,7 @@ export default function BillingView() {
     <div className="mx-auto max-w-4xl space-y-8 p-4 pb-16 md:p-8">
       <PageHeader
         title="Billing & invoices"
-        subtitle="Invoices flow from deals and contracts; clients pay from their portal and the numbers update here instantly."
+        subtitle="Invoices flow from deals and contracts; record payments as they land and the client's portal history updates instantly."
       >
         <PrimaryButton onClick={() => { setCompanyId(clients[0]?.id ?? ""); setCreating(true); }}>
           <Plus className="size-4" />
@@ -423,7 +571,7 @@ export default function BillingView() {
         </Card>
         <Card className="p-4">
           <p className="text-xl font-semibold tabular-nums">
-            {fmtMoney(paid.reduce((s, i) => s + i.amount, 0))}
+            {fmtMoney(collectedAll)}
           </p>
           <p className="mt-1 text-xs text-ink-dim">collected · all time</p>
         </Card>
@@ -459,7 +607,12 @@ export default function BillingView() {
         <SectionLabel>Outstanding</SectionLabel>
         <Card className="mt-3 divide-y divide-edge">
           {dueInvoices.map((i) => (
-            <InvoiceRow key={i.id} invoice={i} now={now} />
+            <InvoiceRow
+              key={i.id}
+              invoice={i}
+              now={now}
+              onRecord={() => setRecordingFor(i)}
+            />
           ))}
           {dueInvoices.length === 0 && (
             <p className="p-5 text-sm text-ink-faint">
@@ -473,7 +626,12 @@ export default function BillingView() {
         <SectionLabel>Paid</SectionLabel>
         <Card className="mt-3 divide-y divide-edge">
           {paidInvoices.slice(0, 12).map((i) => (
-            <InvoiceRow key={i.id} invoice={i} now={now} />
+            <InvoiceRow
+              key={i.id}
+              invoice={i}
+              now={now}
+              onRecord={() => setRecordingFor(i)}
+            />
           ))}
           {paidInvoices.length === 0 && (
             <p className="p-5 text-sm text-ink-faint">No payments yet.</p>
@@ -540,6 +698,12 @@ export default function BillingView() {
         />
       )}
       {loggingTime && <TimeLogModal onClose={() => setLoggingTime(false)} />}
+      {recordingFor && (
+        <RecordPaymentModal
+          invoice={recordingFor}
+          onClose={() => setRecordingFor(null)}
+        />
+      )}
 
       <Modal open={creating} onClose={() => setCreating(false)} title="New invoice">
         <form onSubmit={submit} className="space-y-4">

@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
-  CreditCard,
   ExternalLink,
   FileText,
   Globe,
@@ -17,14 +16,16 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import { Modal } from "@/components/crm/ui";
 import FileLink from "@/components/crm/FileLink";
 import { useCrm } from "@/lib/crm/store";
 import { uploadWorkspaceFile, useWorkspaceFiles } from "@/lib/crm/files";
 import {
   fmtDate,
   fmtMoney,
+  invoiceBalance,
+  invoiceOverdue,
   relTime,
+  PAYMENT_METHOD_LABELS,
   type Company,
   type Deliverable,
   type Ticket,
@@ -32,6 +33,7 @@ import {
 import {
   deliverablesFor,
   invoicesFor,
+  paymentsFor,
   primaryContactFor,
   projectsFor,
   siteHealthFor,
@@ -470,30 +472,19 @@ export function ProjectsTool({ company }: { company: Company }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Billing — invoices with a demo pay flow                             */
+/* Billing — invoice + payment history (read-only for clients)         */
 /* ------------------------------------------------------------------ */
 
 export function BillingTool({ company }: { company: Company }) {
-  const { state, actions } = useCrm();
+  const { state } = useCrm();
   const invoices = invoicesFor(state, company.id);
-  const paidTotal = invoices
-    .filter((i) => i.status === "paid")
-    .reduce((sum, i) => sum + i.amount, 0);
-  const dueTotal = invoices
-    .filter((i) => i.status === "due")
-    .reduce((sum, i) => sum + i.amount, 0);
-
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const [justPaid, setJustPaid] = useState<string | null>(null);
-  const paying = invoices.find((i) => i.id === payingId) ?? null;
-
-  const confirmPay = () => {
-    if (!paying) return;
-    actions.payInvoice(paying.id);
-    playSound("open");
-    setJustPaid(paying.number);
-    setPayingId(null);
-  };
+  const payments = paymentsFor(state, company.id);
+  const [now] = useState(() => Date.now());
+  const openBalance = invoices.reduce(
+    (sum, i) => sum + invoiceBalance(i, state.payments),
+    0,
+  );
+  const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
@@ -502,106 +493,75 @@ export function BillingTool({ company }: { company: Company }) {
         subtitle={`Payment history for your work with ${state.workspace.name}.`}
       />
 
-      {justPaid && (
-        <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent-dim p-4">
-          <CheckCircle2 className="size-5 shrink-0 text-accent" />
-          <p className="text-sm">
-            {justPaid} paid — receipt posted to your updates feed. Thank you!
-          </p>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="open balance" value={fmtMoney(dueTotal)} accent={dueTotal === 0} />
+        <Stat label="open balance" value={fmtMoney(openBalance)} accent={openBalance === 0} />
         <Stat label="paid to date" value={fmtMoney(paidTotal)} />
       </div>
 
       <div className="divide-y divide-edge rounded-xl border border-edge bg-surface-2/60">
-        {invoices.map((inv) => (
-          <div key={inv.id} className="flex items-center gap-3.5 p-4">
-            <Receipt className="size-4 shrink-0 text-ink-faint" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{inv.number}</p>
-              <p className="truncate text-xs text-ink-dim">{inv.label}</p>
+        {invoices.map((inv) => {
+          const balance = invoiceBalance(inv, state.payments);
+          const overdue = invoiceOverdue(inv, now);
+          const invPayments = payments.filter((p) => p.invoiceId === inv.id);
+          return (
+            <div key={inv.id}>
+              <div className="flex items-center gap-3.5 p-4">
+                <Receipt className="size-4 shrink-0 text-ink-faint" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{inv.number}</p>
+                  <p className="truncate text-xs text-ink-dim">{inv.label}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-mono text-sm tabular-nums">
+                    {fmtMoney(inv.amount)}
+                  </p>
+                  <p
+                    className={`text-[11px] font-medium ${
+                      inv.status === "paid"
+                        ? "text-accent"
+                        : overdue
+                          ? "text-danger"
+                          : "text-warn"
+                    }`}
+                  >
+                    {inv.status === "paid"
+                      ? `paid · ${fmtDate(inv.paidAt ?? inv.issuedAt)}`
+                      : inv.status === "partial"
+                        ? `${fmtMoney(balance)} remaining · due ${fmtDate(inv.dueAt)}`
+                        : `${overdue ? "overdue" : "due"} · ${fmtDate(inv.dueAt)}`}
+                  </p>
+                </div>
+              </div>
+              {invPayments.length > 0 && (
+                <div className="space-y-1 px-4 pb-3 pl-11">
+                  {invPayments.map((p) => (
+                    <p
+                      key={p.id}
+                      className="flex items-center gap-2 text-xs text-ink-dim"
+                    >
+                      <CheckCircle2 className="size-3 shrink-0 text-accent" />
+                      {fmtMoney(p.amount)} received ·{" "}
+                      {PAYMENT_METHOD_LABELS[p.method]} · {fmtDate(p.paidOn)}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="shrink-0 text-right">
-              <p className="font-mono text-sm tabular-nums">
-                {fmtMoney(inv.amount)}
-              </p>
-              <p
-                className={`text-[11px] font-medium ${
-                  inv.status === "paid" ? "text-accent" : "text-warn"
-                }`}
-              >
-                {inv.status === "paid"
-                  ? `paid · ${fmtDate(inv.paidAt ?? inv.issuedAt)}`
-                  : `due · ${fmtDate(inv.dueAt)}`}
-              </p>
-            </div>
-            {inv.status === "due" && (
-              <button
-                onClick={() => setPayingId(inv.id)}
-                className="shrink-0 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-black transition hover:brightness-110"
-              >
-                Pay
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {invoices.length === 0 && (
           <p className="p-5 text-sm text-ink-faint">No invoices yet.</p>
         )}
       </div>
 
       <p className="text-xs leading-relaxed text-ink-dim">
-        A question about an invoice?{" "}
+        Invoices are payable by bank transfer — details are on the invoice
+        itself. A question about a payment?{" "}
         <Link href="/portal/support" className="text-accent hover:underline">
           Send the team a message
         </Link>
         .
       </p>
-
-      <Modal
-        open={paying !== null}
-        onClose={() => setPayingId(null)}
-        title="Pay invoice"
-      >
-        {paying && (
-          <div className="space-y-5">
-            <div className="rounded-xl border border-edge bg-surface-2/60 p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium">{paying.number}</p>
-                <p className="font-mono text-lg font-semibold tabular-nums">
-                  {fmtMoney(paying.amount)}
-                </p>
-              </div>
-              <p className="mt-1 text-xs text-ink-dim">{paying.label}</p>
-            </div>
-            <div className="flex items-center gap-3.5 rounded-xl border border-edge bg-surface-2/60 p-4">
-              <CreditCard className="size-5 shrink-0 text-ink-dim" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Card on file</p>
-                <p className="font-mono text-xs text-ink-dim">
-                  •••• •••• •••• 4242
-                </p>
-              </div>
-              <span className="rounded-full border border-edge px-2.5 py-1 text-[11px] text-ink-dim">
-                demo
-              </span>
-            </div>
-            <button
-              onClick={confirmPay}
-              className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-black transition hover:brightness-110"
-            >
-              Pay {fmtMoney(paying.amount)}
-            </button>
-            <p className="text-center text-[11px] leading-relaxed text-ink-faint">
-              Demo payment — no card is charged. Stripe handles this for real
-              once payments connect.
-            </p>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

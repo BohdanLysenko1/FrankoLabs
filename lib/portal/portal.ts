@@ -292,6 +292,12 @@ export function invoicesFor(state: CrmState, companyId: string) {
     .sort((a, b) => b.issuedAt - a.issuedAt);
 }
 
+export function paymentsFor(state: CrmState, companyId: string) {
+  return state.payments
+    .filter((p) => p.companyId === companyId)
+    .sort((a, b) => b.paidOn - a.paidOn);
+}
+
 export function contractsFor(state: CrmState, companyId: string) {
   return state.contracts
     .filter((c) => c.companyId === companyId)
@@ -320,7 +326,7 @@ export function toolBadgesFor(
   company: Company,
 ): Partial<Record<PortalToolId, number>> {
   const billing = state.invoices.filter(
-    (i) => i.companyId === company.id && i.status === "due",
+    (i) => i.companyId === company.id && i.status !== "paid",
   ).length;
   const contracts = state.contracts.filter(
     (c) => c.companyId === company.id && c.status !== "signed",

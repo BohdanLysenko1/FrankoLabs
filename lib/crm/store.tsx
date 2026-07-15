@@ -15,9 +15,12 @@ import { makeSeedState, makeSeedDocs, AGENCY_STAGES, SIMPLE_STAGES, DEMO_VAULT_S
 import {
   uid,
   DAY,
+  fmtMoney,
+  invoiceBalance,
   nextBillingDate,
   type Activity,
   type ActivityType,
+  type AppNotification,
   type AutomationRule,
   type AutomationTrigger,
   type CalEvent,
@@ -34,6 +37,8 @@ import {
   type Invoice,
   type Lead,
   type OpenRequest,
+  type Payment,
+  type PaymentMethod,
   type PlanId,
   type Retainer,
   type Stage,
@@ -114,6 +119,8 @@ type Action =
   | { type: "log-activity"; activity: Activity }
   | { type: "add-invoice"; invoice: Invoice }
   | { type: "pay-invoice"; id: string; at: number }
+  | { type: "add-payment"; payment: Payment; at: number }
+  | { type: "delete-payment"; id: string }
   | { type: "save-retainer"; retainer: Retainer }
   | { type: "delete-retainer"; id: string }
   | { type: "add-time-entry"; entry: TimeEntry }
@@ -144,6 +151,7 @@ type Action =
   | { type: "add-rule"; rule: AutomationRule }
   | { type: "toggle-rule"; id: string }
   | { type: "delete-rule"; id: string }
+  | { type: "add-notification"; notification: AppNotification }
   | { type: "mark-notifs-read"; ids: string[] }
   | { type: "set-open-request"; request: OpenRequest | null }
   | { type: "add-team-member"; member: CrmState["team"][number] }
@@ -167,6 +175,7 @@ function emptyState(base: CrmState): CrmState {
     activities: [],
     events: [],
     invoices: [],
+    payments: [],
     retainers: [],
     timeEntries: [],
     emailThreads: [],
@@ -179,6 +188,7 @@ function emptyState(base: CrmState): CrmState {
     vault: [],
     proposals: [],
     clientUsers: [],
+    notifications: [],
   };
 }
 
@@ -359,11 +369,36 @@ function reducer(state: CrmState, action: Action): CrmState {
       return {
         ...state,
         invoices: state.invoices.map((i) =>
-          i.id === action.id && i.status === "due"
+          i.id === action.id && i.status !== "paid"
             ? { ...i, status: "paid", paidAt: action.at }
             : i,
         ),
       };
+    case "add-payment": {
+      const payments = [action.payment, ...state.payments];
+      return {
+        ...state,
+        payments,
+        invoices: state.invoices.map((i) =>
+          i.id === action.payment.invoiceId
+            ? restatusInvoice(i, payments, action.at)
+            : i,
+        ),
+      };
+    }
+    case "delete-payment": {
+      const removed = state.payments.find((p) => p.id === action.id);
+      const payments = state.payments.filter((p) => p.id !== action.id);
+      return {
+        ...state,
+        payments,
+        invoices: removed
+          ? state.invoices.map((i) =>
+              i.id === removed.invoiceId ? restatusInvoice(i, payments, Date.now()) : i,
+            )
+          : state.invoices,
+      };
+    }
     case "save-retainer": {
       const exists = state.retainers.some((r) => r.id === action.retainer.id);
       return {
@@ -535,6 +570,11 @@ function reducer(state: CrmState, action: Action): CrmState {
       };
     case "delete-rule":
       return { ...state, rules: state.rules.filter((r) => r.id !== action.id) };
+    case "add-notification":
+      return {
+        ...state,
+        notifications: [action.notification, ...state.notifications].slice(0, 100),
+      };
     case "mark-notifs-read": {
       const merged = new Set([...state.readNotifIds, ...action.ids]);
       return { ...state, readNotifIds: [...merged].slice(-400) };
@@ -614,6 +654,18 @@ function initState(): CrmState {
     // Corrupt save — fall through to a fresh workspace.
   }
   return seeded;
+}
+
+/** Re-derive an invoice's status from its payment ledger (mirrors the server). */
+function restatusInvoice(invoice: Invoice, payments: Payment[], at: number): Invoice {
+  const covered = payments.reduce(
+    (sum, p) => (p.invoiceId === invoice.id ? sum + p.amount : sum),
+    0,
+  );
+  if (covered >= invoice.amount) {
+    return { ...invoice, status: "paid", paidAt: invoice.paidAt ?? at };
+  }
+  return { ...invoice, status: covered > 0 ? "partial" : "due", paidAt: null };
 }
 
 /** Continue the visible invoice numbering from the highest number on record. */
@@ -767,80 +819,195 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
    * record that fired ({deal} in templates) and links created work back to
    * it — deals, contracts, tickets and invoices all pass through here.
    */
-  type AutomationContext = {
-    name: string;
-    dealId?: string | null;
-    contactId?: string | null;
-    companyId?: string | null;
-  };
-  const runAutomations = (
-    kinds: AutomationTrigger["type"][],
-    ctx: AutomationContext,
-    stageId?: string,
-  ) => {
+  /** Demo evaluator — mirrors app.run_automation_event in Postgres. */
+  const runAutomations = (event: AutomationEvent) => {
+    const p = event.payload;
     for (const rule of state.rules) {
-      if (!rule.enabled) continue;
-      const t = rule.trigger;
-      const hit =
-        t.type === "stage-enter"
-          ? kinds.includes("stage-enter") && t.stageId === stageId
-          : kinds.includes(t.type);
-      if (!hit) continue;
-
-      const fill = (s: string) => s.replaceAll("{deal}", ctx.name);
-      if (rule.action.type === "create-task") {
-        dispatch({
-          type: "add-task",
-          task: {
-            id: uid(),
-            title: fill(rule.action.title),
-            dueAt: Date.now() + rule.action.offsetDays * DAY,
-            done: false,
-            dealId: ctx.dealId ?? null,
-            contactId: ctx.contactId ?? null,
-            createdAt: Date.now(),
-          },
-        });
-      } else if (rule.action.type === "portal-update") {
-        logActivity({
-          type: "note",
-          summary: fill(rule.action.text),
-          dealId: ctx.dealId,
-          contactId: ctx.contactId,
-          companyId: ctx.companyId,
-          clientVisible: true,
-        });
-      } else if (rule.action.type === "create-event") {
-        dispatch({
-          type: "add-event",
-          event: {
-            id: uid(),
-            title: fill(rule.action.title),
-            kind: rule.action.kind,
-            startAt: Date.now() + rule.action.offsetDays * DAY,
-            durationMin: 30,
-            dealId: ctx.dealId ?? null,
-            contactId: ctx.contactId ?? null,
-            notes: "",
-            done: false,
-          },
-        });
+      if (!ruleMatches(rule, event)) continue;
+      const taken: string[] = [];
+      for (const action of rule.actions) {
+        if (action.type === "create-task") {
+          dispatch({
+            type: "add-task",
+            task: {
+              id: uid(),
+              title: interpolate(action.title, p),
+              dueAt: Date.now() + action.offsetDays * DAY,
+              done: false,
+              dealId: p.dealId ?? null,
+              contactId: p.contactId ?? null,
+              createdAt: Date.now(),
+            },
+          });
+        } else if (action.type === "send-email") {
+          // Demo mode has no outbox — the activity log stands in for delivery.
+          logActivity({
+            type: "email",
+            summary: `Automation email sent: “${interpolate(action.subject, p)}”.`,
+            dealId: p.dealId,
+            companyId: p.companyId,
+          });
+        } else if (action.type === "notify") {
+          dispatch({
+            type: "add-notification",
+            notification: {
+              id: uid(),
+              userId: null,
+              kind: "automation",
+              title: rule.name,
+              detail: interpolate(action.message, p),
+              href: "/crm/automations",
+              createdAt: Date.now(),
+            },
+          });
+        } else if (action.type === "update-record") {
+          if (action.op === "move-deal-stage" && p.dealId && action.stageId) {
+            dispatch({
+              type: "move-deal",
+              id: p.dealId,
+              stageId: action.stageId,
+              at: Date.now(),
+            });
+          } else if (action.op === "pause-retainer" && p.companyId) {
+            const retainer = state.retainers.find(
+              (r) => r.companyId === p.companyId && r.active,
+            );
+            if (retainer) {
+              dispatch({
+                type: "save-retainer",
+                retainer: { ...retainer, active: false, nextInvoiceOn: null },
+              });
+            }
+          }
+        } else if (action.type === "portal-update") {
+          logActivity({
+            type: "note",
+            summary: interpolate(action.text, p),
+            dealId: p.dealId,
+            contactId: p.contactId,
+            companyId: p.companyId,
+            clientVisible: true,
+          });
+        } else if (action.type === "create-event") {
+          dispatch({
+            type: "add-event",
+            event: {
+              id: uid(),
+              title: interpolate(action.title, p),
+              kind: action.kind,
+              startAt: Date.now() + action.offsetDays * DAY,
+              durationMin: 30,
+              dealId: p.dealId ?? null,
+              contactId: p.contactId ?? null,
+              notes: "",
+              done: false,
+            },
+          });
+        }
+        taken.push(describeAction(action));
       }
+      dispatch({
+        type: "add-run",
+        run: {
+          id: uid(),
+          ruleId: rule.id,
+          status: "ok",
+          actionsTaken: taken,
+          error: null,
+          at: Date.now(),
+        },
+      });
       logActivity({
         type: "system",
         summary: `Automation ran: ${rule.name}.`,
-        dealId: ctx.dealId,
-        companyId: ctx.companyId,
+        dealId: p.dealId,
+        companyId: p.companyId,
       });
     }
   };
 
-  const dealCtx = (deal: Deal): AutomationContext => ({
+  const companyName = (id: string | null | undefined) =>
+    state.companies.find((c) => c.id === id)?.name;
+
+  const dealPayload = (deal: Deal): AutomationEventPayload => ({
     name: deal.name,
+    deal: deal.name,
+    company: companyName(deal.companyId),
+    amount: deal.value,
     dealId: deal.id,
     contactId: deal.contactId,
     companyId: deal.companyId,
+    stageId: deal.stageId,
   });
+
+  const invoicePayload = (invoice: Invoice): AutomationEventPayload => ({
+    name: invoice.label,
+    invoice: invoice.number,
+    company: companyName(invoice.companyId),
+    amount: invoice.amount,
+    dealId: invoice.dealId,
+    companyId: invoice.companyId,
+    invoiceId: invoice.id,
+  });
+
+  /** Record a (possibly partial) payment; status re-derives from the ledger. */
+  const recordPayment = (input: {
+    invoiceId: string;
+    amount: number;
+    method: PaymentMethod;
+    paidOn?: number;
+    reference?: string;
+  }) => {
+    const invoice = state.invoices.find((i) => i.id === input.invoiceId);
+    if (!invoice || invoice.status === "paid" || input.amount <= 0) return;
+    const at = Date.now();
+    const settles = input.amount >= invoiceBalance(invoice, state.payments);
+    dispatch({
+      type: "add-payment",
+      payment: {
+        id: uid(),
+        invoiceId: invoice.id,
+        companyId: invoice.companyId,
+        amount: input.amount,
+        method: input.method,
+        paidOn: input.paidOn ?? at,
+        reference: input.reference?.trim() ?? "",
+        createdAt: at,
+      },
+      at,
+    });
+    logActivity({
+      type: "system",
+      summary: settles
+        ? `Invoice ${invoice.number} paid — ${invoice.label}.`
+        : `Payment received for ${invoice.number} — ${fmtMoney(input.amount)}.`,
+      dealId: invoice.dealId,
+      companyId: invoice.companyId,
+      clientVisible: true,
+    });
+    const remaining = invoiceBalance(invoice, state.payments) - input.amount;
+    dispatch({
+      type: "add-notification",
+      notification: {
+        id: uid(),
+        userId: null,
+        kind: "payment",
+        title: settles ? "Invoice paid" : "Payment received",
+        detail: `${invoice.number} · ${fmtMoney(input.amount)}${
+          settles ? " — paid in full" : ` — ${fmtMoney(remaining)} remaining`
+        }`,
+        href: "/crm/billing",
+        createdAt: at,
+      },
+    });
+    if (settles) {
+      runAutomations(["invoice-paid"], {
+        name: invoice.label,
+        dealId: invoice.dealId,
+        companyId: invoice.companyId,
+      });
+    }
+  };
 
   return {
     completeOnboarding: async (
@@ -1039,7 +1206,7 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
     /** Demo reminder — no real email engine, so it only logs the touch. */
     sendInvoiceReminder: (id: string) => {
       const invoice = state.invoices.find((i) => i.id === id);
-      if (!invoice || invoice.status !== "due") return;
+      if (!invoice || invoice.status === "paid") return;
       logActivity({
         type: "email",
         summary: `Payment reminder sent for ${invoice.number} — ${invoice.label}.`,
@@ -1048,22 +1215,17 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
         clientVisible: true,
       });
     },
-    /** Demo payment — flips a due invoice to paid and tells both sides. */
+    recordPayment,
+    deletePayment: (id: string) => dispatch({ type: "delete-payment", id }),
+    /** Settle the remaining balance in one step ("Mark paid"). */
     payInvoice: (id: string) => {
       const invoice = state.invoices.find((i) => i.id === id);
-      if (!invoice || invoice.status !== "due") return;
-      dispatch({ type: "pay-invoice", id, at: Date.now() });
-      logActivity({
-        type: "system",
-        summary: `Invoice ${invoice.number} paid — ${invoice.label}.`,
-        dealId: invoice.dealId,
-        companyId: invoice.companyId,
-        clientVisible: true,
-      });
-      runAutomations(["invoice-paid"], {
-        name: invoice.label,
-        dealId: invoice.dealId,
-        companyId: invoice.companyId,
+      if (!invoice || invoice.status === "paid") return;
+      recordPayment({
+        invoiceId: id,
+        amount: invoiceBalance(invoice, state.payments),
+        method: "other",
+        reference: "Marked as paid",
       });
     },
 
@@ -2342,7 +2504,7 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
     },
     sendInvoiceReminder: (id) => {
       const invoice = getState().invoices.find((i) => i.id === id);
-      if (!invoice || invoice.status !== "due") return;
+      if (!invoice || invoice.status === "paid") return;
       write(() => db.rpc("send_invoice_reminder", { p_invoice: id }));
       logActivity({
         type: "email",
@@ -2352,9 +2514,41 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
         clientVisible: true,
       });
     },
+    recordPayment: (input) => {
+      const invoice = getState().invoices.find((i) => i.id === input.invoiceId);
+      if (!invoice || invoice.status === "paid" || input.amount <= 0) return;
+      const at = Date.now();
+      const payment: Payment = {
+        id: uid(),
+        invoiceId: invoice.id,
+        companyId: invoice.companyId,
+        amount: input.amount,
+        method: input.method,
+        paidOn: input.paidOn ?? at,
+        reference: input.reference?.trim() ?? "",
+        createdAt: at,
+      };
+      local({ type: "add-payment", payment, at });
+      // The RPC re-derives status, logs the activity and queues the receipt.
+      write(() =>
+        db.rpc("record_payment", {
+          p_id: payment.id,
+          p_invoice: payment.invoiceId,
+          p_amount: payment.amount,
+          p_method: payment.method,
+          p_paid_on: new Date(payment.paidOn).toISOString().slice(0, 10),
+          p_reference: payment.reference,
+        }),
+      );
+    },
+    deletePayment: (id) => {
+      local({ type: "delete-payment", id });
+      write(() => db.rpc("delete_payment", { p_payment: id }));
+    },
     payInvoice: (id) => {
       const invoice = getState().invoices.find((i) => i.id === id);
-      if (!invoice || invoice.status !== "due") return;
+      if (!invoice || invoice.status === "paid") return;
+      // Optimistic status flip; the payment row itself arrives via realtime.
       local({ type: "pay-invoice", id, at: Date.now() });
       write(() => db.rpc("pay_invoice", { p_invoice: id }));
     },

@@ -6,7 +6,13 @@ import { motion } from "framer-motion";
 import { ArrowRight, FilePen, PackageOpen, Receipt, ShieldCheck } from "lucide-react";
 import Widget from "@/components/os/Widget";
 import { useCrm } from "@/lib/crm/store";
-import { fmtDate, fmtMoney, relTime, type Company } from "@/lib/crm/types";
+import {
+  fmtDate,
+  fmtMoney,
+  invoiceBalance,
+  relTime,
+  type Company,
+} from "@/lib/crm/types";
 import {
   contractsFor,
   deliverablesFor,
@@ -35,10 +41,12 @@ export default function ClientDesktop({ company }: { company: Company }) {
     (p) => p.stageKind === "open",
   );
   const invoices = invoicesFor(state, company.id);
-  const due = invoices.find((i) => i.status === "due");
-  const paidTotal = invoices
-    .filter((i) => i.status === "paid")
-    .reduce((sum, i) => sum + i.amount, 0);
+  const due = invoices.find((i) => i.status !== "paid");
+  // Everything covered so far: full amounts on paid invoices, partials as-is.
+  const paidTotal = invoices.reduce(
+    (sum, i) => sum + (i.amount - invoiceBalance(i, state.payments)),
+    0,
+  );
   const updates = updatesFor(state, company.id);
   const pendingContract = entitled.includes("contracts")
     ? contractsFor(state, company.id).find((c) => c.status !== "signed")

@@ -12,7 +12,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
-import { fmtMoney, relTime, type Company } from "@/lib/crm/types";
+import { fmtMoney, invoiceBalance, relTime, type Company } from "@/lib/crm/types";
 import {
   contractsFor,
   deliverablesFor,
@@ -70,12 +70,12 @@ export default function PortalBell({ company }: { company: Company }) {
       });
     }
     for (const i of invoicesFor(state, company.id)) {
-      if (i.status !== "due") continue;
+      if (i.status === "paid") continue;
       list.push({
         id: `inv-${i.id}`,
         icon: Receipt,
         title: "Invoice due",
-        detail: `${i.number} · ${fmtMoney(i.amount)} — pay in one click`,
+        detail: `${i.number} · ${fmtMoney(invoiceBalance(i, state.payments))} open — details in Billing`,
         href: "/portal/billing",
         at: i.issuedAt,
       });

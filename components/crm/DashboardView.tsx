@@ -132,12 +132,18 @@ export default function DashboardView() {
       (d) => stageById.get(d.stageId)?.kind === "open",
     );
     const pipelineValue = open.reduce((s, d) => s + d.value, 0);
-    const due = state.invoices.filter((i) => i.status === "due");
+    const due = state.invoices.filter((i) => i.status !== "paid");
     const overdue = due.filter((i) => i.dueAt < now);
     const paid = state.invoices.filter((i) => i.status === "paid");
-    const collected30d = paid
-      .filter((i) => (i.paidAt ?? 0) > now - 30 * DAY)
-      .reduce((s, i) => s + i.amount, 0);
+    // Ledger first; paid invoices without payment rows (imports) still count.
+    const ledgered = new Set(state.payments.map((p) => p.invoiceId));
+    const collected30d =
+      state.payments
+        .filter((p) => p.paidOn > now - 30 * DAY)
+        .reduce((s, p) => s + p.amount, 0) +
+      paid
+        .filter((i) => !ledgered.has(i.id) && (i.paidAt ?? 0) > now - 30 * DAY)
+        .reduce((s, i) => s + i.amount, 0);
     const activeTickets = state.tickets.filter((t) => t.status !== "resolved");
     const pendingContracts = state.contracts.filter(
       (c) => c.status !== "signed",

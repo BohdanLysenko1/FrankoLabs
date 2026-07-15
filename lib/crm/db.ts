@@ -11,6 +11,7 @@ import {
   type Activity,
   type ActivityType,
   type AnalyticsDay,
+  type AppNotification,
   type AutomationAction,
   type AutomationRule,
   type AutomationTrigger,
@@ -27,6 +28,7 @@ import {
   type EmailMessage,
   type EmailThread,
   type Invoice,
+  type Payment,
   type Retainer,
   type TimeEntry,
   type Lead,
@@ -181,6 +183,31 @@ export function rowToInvoice(r: Tables<"invoices">): Invoice {
     dueAt: ms(r.due_at),
     paidAt: msOrNull(r.paid_at),
     status: r.status as Invoice["status"],
+  };
+}
+
+export function rowToNotification(r: Tables<"notifications">): AppNotification {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    kind: r.kind as AppNotification["kind"],
+    title: r.title,
+    detail: r.detail,
+    href: r.href,
+    createdAt: ms(r.created_at),
+  };
+}
+
+export function rowToPayment(r: Tables<"payments">): Payment {
+  return {
+    id: r.id,
+    invoiceId: r.invoice_id,
+    companyId: r.company_id,
+    amount: Number(r.amount),
+    method: r.method as Payment["method"],
+    paidOn: ms(r.paid_on),
+    reference: r.reference,
+    createdAt: ms(r.created_at),
   };
 }
 
@@ -482,6 +509,7 @@ const sortState = (state: CrmState): CrmState => ({
   activities: [...state.activities].sort(byDesc((a) => a.at)),
   events: [...state.events].sort(byAsc((e) => e.startAt)),
   invoices: [...state.invoices].sort(byDesc((i) => i.issuedAt)),
+  payments: [...state.payments].sort(byDesc((p) => p.paidOn)),
   retainers: [...state.retainers].sort(byDesc((r) => r.createdAt)),
   timeEntries: [...state.timeEntries].sort(byDesc((t) => t.entryDate)),
   emailThreads: [...state.emailThreads].sort(byDesc((t) => t.lastMessageAt)),
@@ -517,6 +545,7 @@ export async function loadWorkspaceState(
     activitiesRes,
     eventsRes,
     invoicesRes,
+    paymentsRes,
     retainersRes,
     timeEntriesRes,
     emailThreadsRes,
@@ -529,6 +558,7 @@ export async function loadWorkspaceState(
     rulesRes,
     membersRes,
     companyMembersRes,
+    notificationsRes,
     readRes,
     proposalsRes,
     docsRes,
@@ -551,6 +581,7 @@ export async function loadWorkspaceState(
       .limit(1000),
     db.from("events").select("*").eq("workspace_id", workspaceId),
     db.from("invoices").select("*").eq("workspace_id", workspaceId),
+    db.from("payments").select("*").eq("workspace_id", workspaceId),
     db.from("retainers").select("*").eq("workspace_id", workspaceId),
     db.from("time_entries").select("*").eq("workspace_id", workspaceId),
     db.from("email_threads").select("*").eq("workspace_id", workspaceId),
@@ -571,6 +602,12 @@ export async function loadWorkspaceState(
     db.from("automation_rules").select("*").eq("workspace_id", workspaceId),
     db.from("workspace_members").select("*").eq("workspace_id", workspaceId),
     db.from("company_members").select("*").eq("workspace_id", workspaceId),
+    db
+      .from("notifications")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(100),
     db
       .from("read_notifications")
       .select("notif_id")
@@ -635,6 +672,7 @@ export async function loadWorkspaceState(
     activities: (activitiesRes.data ?? []).map(rowToActivity),
     events: (eventsRes.data ?? []).map(rowToEvent),
     invoices: (invoicesRes.data ?? []).map(rowToInvoice),
+    payments: (paymentsRes.data ?? []).map(rowToPayment),
     retainers: (retainersRes.data ?? []).map(rowToRetainer),
     timeEntries: (timeEntriesRes.data ?? []).map(rowToTimeEntry),
     emailThreads: (emailThreadsRes.data ?? []).map((t) =>
@@ -648,6 +686,7 @@ export async function loadWorkspaceState(
     entitlements,
     rules: (rulesRes.data ?? []).map(rowToRule),
     team,
+    notifications: (notificationsRes.data ?? []).map(rowToNotification),
     readNotifIds: (readRes.data ?? []).map((r) => r.notif_id),
     onboarded: true,
     ui: { openRequest: null },
@@ -834,6 +873,26 @@ export function applyChange(
               (a, b) => b.issuedAt - a.issuedAt,
             ),
       });
+    case "notifications":
+      return ok({
+        ...state,
+        notifications: del
+          ? removeBy(state.notifications, id, (n) => n.id)
+          : upsertBy(
+              state.notifications,
+              rowToNotification(newRow as Tables<"notifications">),
+              (n) => n.id,
+            ).sort((a, b) => b.createdAt - a.createdAt),
+      });
+    case "payments":
+      return ok({
+        ...state,
+        payments: del
+          ? removeBy(state.payments, id, (p) => p.id)
+          : upsertBy(state.payments, rowToPayment(newRow as Tables<"payments">), (p) => p.id).sort(
+              (a, b) => b.paidOn - a.paidOn,
+            ),
+      });
     case "retainers":
       return ok({
         ...state,
@@ -1018,6 +1077,7 @@ export const REALTIME_TABLES = [
   "activities",
   "events",
   "invoices",
+  "payments",
   "retainers",
   "time_entries",
   "email_threads",
@@ -1028,6 +1088,7 @@ export const REALTIME_TABLES = [
   "deliverables",
   "entitlements",
   "automation_rules",
+  "notifications",
   "read_notifications",
   "proposals",
   "doc_articles",
@@ -1251,6 +1312,25 @@ export async function importWorkspaceData(
   );
 
   const dateStr = (at: number): string => new Date(at).toISOString().slice(0, 10);
+
+  // Payments only make sense when their invoice came along in the payload.
+  await insertAll(
+    db,
+    "payments",
+    (data.payments ?? [])
+      .filter((p) => idMap.has(p.invoiceId))
+      .map((p) => ({
+        id: remap(p.id),
+        workspace_id: workspaceId,
+        invoice_id: remap(p.invoiceId),
+        company_id: remap(p.companyId),
+        amount: p.amount,
+        method: p.method,
+        paid_on: dateStr(p.paidOn),
+        reference: p.reference,
+        created_at: iso(p.createdAt),
+      })),
+  );
 
   await insertAll(
     db,

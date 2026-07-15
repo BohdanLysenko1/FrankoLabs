@@ -1042,6 +1042,111 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string
+          detail: string
+          href: string
+          id: string
+          kind: string
+          rule_id: string | null
+          title: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string
+          href?: string
+          id?: string
+          kind?: string
+          rule_id?: string | null
+          title: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string
+          href?: string
+          id?: string
+          kind?: string
+          rule_id?: string | null
+          title?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          method: string
+          paid_on: string
+          recorded_by: string | null
+          reference: string
+          workspace_id: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          method?: string
+          paid_on?: string
+          recorded_by?: string | null
+          reference?: string
+          workspace_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          method?: string
+          paid_on?: string
+          recorded_by?: string | null
+          reference?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       proposals: {
         Row: {
           company_id: string | null
@@ -1744,7 +1849,19 @@ export type Database = {
         Args: { p_deal: string; p_stage: string }
         Returns: undefined
       }
+      delete_payment: { Args: { p_payment: string }; Returns: undefined }
       pay_invoice: { Args: { p_invoice: string }; Returns: undefined }
+      record_payment: {
+        Args: {
+          p_amount: number
+          p_id: string
+          p_invoice: string
+          p_method: string
+          p_paid_on: string
+          p_reference: string
+        }
+        Returns: string
+      }
       raise_invoice_seq: {
         Args: { p_seq: number; p_workspace: string }
         Returns: undefined

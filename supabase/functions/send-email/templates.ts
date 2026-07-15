@@ -91,6 +91,71 @@ export function renderEmail(event: string, p: Payload, appBaseUrl: string): Rend
             row("Amount", money(p.amount)),
         ),
       };
+    case "payment-receipt": {
+      const settled = p.settled === true;
+      const methodLabels: Record<string, string> = {
+        "bank-transfer": "Bank transfer",
+        card: "Card",
+        cash: "Cash",
+        other: "Other",
+      };
+      return {
+        subject: settled
+          ? `Receipt: invoice ${s(p.invoiceNumber)} paid in full — ${money(p.amount)}`
+          : `Receipt: ${money(p.amount)} received on invoice ${s(p.invoiceNumber)}`,
+        html: layout(
+          settled ? "Payment received — invoice settled" : "Payment received",
+          `We received a payment on invoice <strong style="color:#e4e4e7">${esc(p.invoiceNumber)}</strong> for ${company}. Thank you!` +
+            row("For", esc(p.label)) +
+            row("Payment", money(p.amount)) +
+            row("Method", methodLabels[s(p.method)] ?? esc(p.method)) +
+            row("Received", date(p.paidOn)) +
+            row("Invoice total", money(p.invoiceTotal)) +
+            (settled
+              ? `<div style="margin-top:12px;color:#10b981">This invoice is now paid in full.</div>`
+              : row("Remaining balance", money(p.balance))),
+          portal,
+        ),
+      };
+    }
+    case "automation-email": {
+      // Body written in the automation builder — free-form paragraphs.
+      const paragraphs = s(p.body)
+        .split(/\n{2,}/)
+        .map((para) => `<p style="margin:0 0 14px">${esc(para).replace(/\n/g, "<br>")}</p>`)
+        .join("");
+      return {
+        subject: s(p.subject) || "A note from Franko Labs",
+        html: layout(s(p.subject) || "A note from Franko Labs", paragraphs, portal),
+      };
+    }
+    case "daily-digest": {
+      // Sections: [{ title, items: string[] }] — built by app.send_daily_digests.
+      const sections = Array.isArray(p.sections) ? p.sections : [];
+      const body = sections
+        .map((sec) => {
+          const section = sec as { title?: unknown; items?: unknown };
+          const items = Array.isArray(section.items) ? section.items : [];
+          if (items.length === 0) return "";
+          return (
+            `<div style="margin:16px 0 4px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#71717a">${esc(section.title)}</div>` +
+            items
+              .map((it) => `<div style="margin:3px 0;color:#d4d4d8">• ${esc(it)}</div>`)
+              .join("")
+          );
+        })
+        .join("");
+      return {
+        subject: `${s(p.workspace) || "Franko OS"} — daily digest, ${date(p.date)}`,
+        html: layout(
+          "Your daily digest",
+          (body ||
+            `<div style="color:#a1a1aa">A quiet day — nothing new since yesterday.</div>`) +
+            `<div style="margin-top:16px;font-size:12px;color:#52525b">You get this because the daily digest is turned on in Settings → Workspace.</div>`,
+          crm,
+        ),
+      };
+    }
     case "contract-sent":
       return {
         subject: `Contract ready to review: ${s(p.title)}`,

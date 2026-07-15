@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
+import { useSession } from "@/lib/supabase/session";
 import { computePulse } from "@/lib/crm/pulse";
 import { DAY, relTime } from "@/lib/crm/types";
 
@@ -30,14 +31,31 @@ type Notif = {
 };
 
 /**
- * The inbox is derived, not stored: Pulse signals, due tasks and recent
- * system events are computed fresh each render, and dismissals are tracked
- * as read ids in the store.
+ * The inbox merges two sources: status-shaped notifications (Pulse signals,
+ * due tasks) derived fresh each render so they self-clear when resolved, and
+ * persisted event notifications (payments, automations) from the store.
+ * Dismissals are tracked as read ids either way.
  */
 function useNotifications(now: number): Notif[] {
   const { state } = useCrm();
+  const session = useSession();
+  const userId = session.user?.id ?? null;
   return useMemo(() => {
     const items: Notif[] = [];
+
+    const kindIcon = { payment: Receipt, automation: Zap, system: Bell } as const;
+    for (const n of state.notifications) {
+      if (n.userId !== null && userId !== null && n.userId !== userId) continue;
+      items.push({
+        id: n.id,
+        icon: kindIcon[n.kind] ?? Bell,
+        tone: n.kind === "payment" ? "text-accent" : "text-ink-dim",
+        title: n.title,
+        detail: n.detail,
+        href: n.href || "/crm",
+        at: n.createdAt,
+      });
+    }
 
     const { signals } = computePulse(state, now);
     for (const s of signals) {
@@ -114,18 +132,10 @@ function useNotifications(now: number): Notif[] {
       }
     }
 
+    // Paid notifications are persisted rows now; overdue stays derived so it
+    // disappears the moment the balance clears.
     for (const i of state.invoices) {
-      if (i.status === "paid" && i.paidAt && now - i.paidAt <= 3 * DAY) {
-        items.push({
-          id: `inv-paid-${i.id}`,
-          icon: Receipt,
-          tone: "text-accent",
-          title: "Invoice paid",
-          detail: `${i.number} · ${companyName(i.companyId)} — ${i.label}`,
-          href: "/crm/billing",
-          at: i.paidAt,
-        });
-      } else if (i.status === "due" && i.dueAt < now) {
+      if (i.status !== "paid" && i.dueAt < now) {
         items.push({
           id: `inv-over-${i.id}`,
           icon: Receipt,
@@ -185,7 +195,7 @@ function useNotifications(now: number): Notif[] {
       .filter((i) => i.at !== null)
       .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
     return [...pinned, ...dated].slice(0, 20);
-  }, [state, now]);
+  }, [state, now, userId]);
 }
 
 export default function NotificationsBell() {

@@ -1,6 +1,7 @@
 import {
   fmtDate,
   fmtMoney,
+  invoiceBalance,
   relTime,
   type Company,
   type CrmState,
@@ -47,14 +48,15 @@ function clientAnswer(state: CrmState, company: Company, input: string): string 
   const q = input.toLowerCase();
 
   if (matches(q, "owe", "balance", "invoice", "bill", "pay")) {
-    const due = invoicesFor(state, company.id).filter((i) => i.status === "due");
+    const due = invoicesFor(state, company.id).filter((i) => i.status !== "paid");
     if (due.length === 0)
       return "You're all settled — no open invoices. Paid history is in Billing if you need receipts.";
-    const total = due.reduce((s, i) => s + i.amount, 0);
+    const total = due.reduce((s, i) => s + invoiceBalance(i, state.payments), 0);
     const lines = due.map(
-      (i) => `• ${i.number} — ${i.label}: ${fmtMoney(i.amount)}, due ${fmtDate(i.dueAt)}`,
+      (i) =>
+        `• ${i.number} — ${i.label}: ${fmtMoney(invoiceBalance(i, state.payments))}, due ${fmtDate(i.dueAt)}`,
     );
-    return `You have ${due.length === 1 ? "one open invoice" : `${due.length} open invoices`} totaling ${fmtMoney(total)}:\n${lines.join("\n")}\n\nYou can pay right from the Billing tool.`;
+    return `You have ${due.length === 1 ? "one open invoice" : `${due.length} open invoices`} totaling ${fmtMoney(total)}:\n${lines.join("\n")}\n\nPayment details are on the invoice — history lives in the Billing tool.`;
   }
 
   if (matches(q, "project", "progress", "going", "status of", "work")) {
@@ -99,13 +101,13 @@ function clientAnswer(state: CrmState, company: Company, input: string): string 
   }
 
   if (matches(q, "waiting on me", "attention", "todo", "to do", "need to do", "anything")) {
-    const due = invoicesFor(state, company.id).filter((i) => i.status === "due");
+    const due = invoicesFor(state, company.id).filter((i) => i.status !== "paid");
     const unsigned = contractsFor(state, company.id).filter((c) => c.status !== "signed");
     const items: string[] = [];
     if (unsigned.length > 0)
       items.push(`• Sign "${unsigned[0].title}" in Contracts`);
     if (due.length > 0)
-      items.push(`• ${due.length === 1 ? `Invoice ${due[0].number}` : `${due.length} invoices`} open in Billing (${fmtMoney(due.reduce((s, i) => s + i.amount, 0))})`);
+      items.push(`• ${due.length === 1 ? `Invoice ${due[0].number}` : `${due.length} invoices`} open in Billing (${fmtMoney(due.reduce((s, i) => s + invoiceBalance(i, state.payments), 0))})`);
     return items.length > 0
       ? `Two minutes of homework:\n${items.join("\n")}`
       : "Nothing is waiting on you. The team has the ball on everything in flight.";
@@ -151,12 +153,12 @@ function agencyAnswer(state: CrmState, input: string): string {
   }
 
   if (matches(q, "billing", "outstanding", "unpaid", "owed", "invoice")) {
-    const due = state.invoices.filter((i) => i.status === "due");
+    const due = state.invoices.filter((i) => i.status !== "paid");
     if (due.length === 0) return "Nothing outstanding — every invoice on record is paid.";
-    const total = due.reduce((s, i) => s + i.amount, 0);
+    const total = due.reduce((s, i) => s + invoiceBalance(i, state.payments), 0);
     const lines = due.map((i) => {
       const co = state.companies.find((c) => c.id === i.companyId);
-      return `• ${i.number} — ${co?.name ?? "Unknown"}: ${fmtMoney(i.amount)}, due ${fmtDate(i.dueAt)}`;
+      return `• ${i.number} — ${co?.name ?? "Unknown"}: ${fmtMoney(invoiceBalance(i, state.payments))}, due ${fmtDate(i.dueAt)}`;
     });
     return `${fmtMoney(total)} outstanding across ${due.length} ${due.length === 1 ? "invoice" : "invoices"}:\n${lines.join("\n")}`;
   }

@@ -105,7 +105,7 @@ export function computeDealHealth(
   const overdueInvoices = deal.companyId
     ? state.invoices.filter(
         (i) =>
-          i.companyId === deal.companyId && i.status === "due" && i.dueAt < now,
+          i.companyId === deal.companyId && i.status !== "paid" && i.dueAt < now,
       ).length
     : 0;
   const staleTickets = deal.companyId

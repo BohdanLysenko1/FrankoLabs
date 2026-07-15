@@ -143,26 +143,98 @@ export type CalEvent = {
   done: boolean;
 };
 
-export type AutomationTrigger =
-  | { type: "deal-created" }
-  | { type: "stage-enter"; stageId: string }
-  | { type: "deal-won" }
-  | { type: "contract-signed" }
-  | { type: "ticket-opened" }
-  | { type: "invoice-paid" };
+/**
+ * Automation engine types. Instant triggers fire from database events
+ * (server-side in db mode, from store actions in demo mode); time-based ones
+ * ("-untouched", "-stalled", "-due-soon", "-overdue", "-no-reply", "-quiet",
+ * "retainer-hours") are evaluated by an hourly sweep in Postgres and never
+ * fire in demo mode. lib/crm/automations.ts holds the catalog + evaluator.
+ */
+export type AutomationTriggerType =
+  // Sales
+  | "lead-created"
+  | "lead-untouched"
+  | "deal-created"
+  | "deal-stage-enter"
+  | "deal-stalled"
+  | "deal-won"
+  | "deal-lost"
+  // Money
+  | "invoice-created"
+  | "invoice-due-soon"
+  | "invoice-overdue"
+  | "invoice-paid"
+  | "payment-recorded"
+  | "retainer-hours"
+  | "retainer-billed"
+  // Delivery
+  | "task-overdue"
+  | "task-completed"
+  | "ticket-created"
+  | "ticket-no-reply"
+  | "ticket-status"
+  // Clients
+  | "portal-activated"
+  | "contract-viewed"
+  | "contract-signed"
+  | "email-thread-inbound"
+  | "contact-quiet";
 
+export type AutomationTrigger = {
+  type: AutomationTriggerType;
+  /** deal-stage-enter */
+  stageId?: string;
+  /** lead-untouched, deal-stalled, invoice-due-soon, invoice-overdue */
+  days?: number;
+  /** ticket-no-reply */
+  hours?: number;
+  /** contact-quiet */
+  weeks?: number;
+  /** retainer-hours (0-100) */
+  pct?: number;
+  /** ticket-status */
+  status?: string;
+};
+
+export type AutomationCondition = {
+  field: "companyId" | "stageId" | "amount";
+  op: "eq" | "neq" | "gte" | "lte";
+  value: string | number;
+};
+
+/** "{deal} {company} {contact} {invoice} {amount}" interpolate at run time. */
 export type AutomationAction =
   | { type: "create-task"; title: string; offsetDays: number }
+  | {
+      type: "send-email";
+      to: "client-primary" | "custom";
+      customEmail?: string;
+      subject: string;
+      body: string;
+    }
+  | { type: "notify"; message: string; target: "owner" | "all" }
+  | { type: "update-record"; op: "move-deal-stage" | "pause-retainer"; stageId?: string }
   | { type: "portal-update"; text: string }
   | { type: "create-event"; title: string; offsetDays: number; kind: EventKind };
 
-/** "{deal}" in task titles / update text expands to the deal name at run time. */
 export type AutomationRule = {
   id: string;
   name: string;
   enabled: boolean;
   trigger: AutomationTrigger;
-  action: AutomationAction;
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+};
+
+/** One firing of a rule — what it did (or why it failed). */
+export type AutomationRun = {
+  id: string;
+  ruleId: string;
+  status: "ok" | "error";
+  /** Human-readable lines, e.g. `created task "Kickoff call"`. */
+  actionsTaken: string[];
+  error: string | null;
+  at: number;
 };
 
 /** Cross-page UI requests (e.g. command palette opening a record's drawer). */
@@ -209,7 +281,7 @@ export function takeOpenRequest(): OpenRequest | null {
   }
 }
 
-export type InvoiceStatus = "due" | "paid";
+export type InvoiceStatus = "due" | "partial" | "paid";
 
 export type Invoice = {
   id: string;
@@ -224,6 +296,61 @@ export type Invoice = {
   dueAt: number;
   paidAt: number | null;
   status: InvoiceStatus;
+};
+
+export type PaymentMethod = "bank-transfer" | "card" | "cash" | "other";
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  "bank-transfer": "Bank transfer",
+  card: "Card",
+  cash: "Cash",
+  other: "Other",
+};
+
+/** A recorded payment against an invoice — no processor, just the ledger. */
+export type Payment = {
+  id: string;
+  invoiceId: string;
+  companyId: string;
+  /** USD. */
+  amount: number;
+  method: PaymentMethod;
+  paidOn: number;
+  /** Free-form note — wire reference, check number, "Marked as paid"… */
+  reference: string;
+  createdAt: number;
+};
+
+/** Remaining balance. A paid invoice is settled even if the ledger is short
+ * (imported history has no payment rows). */
+export function invoiceBalance(invoice: Invoice, payments: Payment[]): number {
+  if (invoice.status === "paid") return 0;
+  const covered = payments.reduce(
+    (sum, p) => (p.invoiceId === invoice.id ? sum + p.amount : sum),
+    0,
+  );
+  return Math.max(0, invoice.amount - covered);
+}
+
+/** Overdue is derived, never stored: anything unpaid past its due date. */
+export function invoiceOverdue(invoice: Invoice, now: number = Date.now()): boolean {
+  return invoice.status !== "paid" && invoice.dueAt < now;
+}
+
+/**
+ * A persisted point-in-time notification (payments landing, automations
+ * firing). Status-shaped notifications (overdue tasks, Pulse signals) stay
+ * derived in the bell so they self-clear when resolved.
+ */
+export type AppNotification = {
+  id: string;
+  /** null = broadcast to every workspace member. */
+  userId: string | null;
+  kind: "payment" | "automation" | "system";
+  title: string;
+  detail: string;
+  href: string;
+  createdAt: number;
 };
 
 export type ContractStatus = "sent" | "viewed" | "signed";
@@ -521,6 +648,8 @@ export type CrmState = {
   activities: Activity[];
   events: CalEvent[];
   invoices: Invoice[];
+  /** Recorded payments against invoices — status derives from this ledger. */
+  payments: Payment[];
   /** Recurring monthly engagements — auto-invoiced on their billing day. */
   retainers: Retainer[];
   /** Logged hours, burned against retainers. */
@@ -537,6 +666,8 @@ export type CrmState = {
    */
   entitlements: Record<string, string[]>;
   rules: AutomationRule[];
+  /** Automation firing history (db: automation_runs; demo: synthesized). */
+  automationRuns: AutomationRun[];
   team: TeamMember[];
   /** Managed-site health per client company id. */
   sites: Record<string, SiteHealth>;
@@ -547,6 +678,8 @@ export type CrmState = {
   proposals: Proposal[];
   /** Auth users with portal access, per company. */
   clientUsers: ClientUser[];
+  /** Persisted event notifications; merged with derived ones in the bell. */
+  notifications: AppNotification[];
   /** Notification ids the user has dismissed. */
   readNotifIds: string[];
   /** Set after the onboarding wizard finishes. Persisted with the rest. */
