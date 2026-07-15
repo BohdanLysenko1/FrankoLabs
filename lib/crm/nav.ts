@@ -6,6 +6,7 @@ import {
   ChartColumn,
   FilePen,
   Globe,
+  Handshake,
   Kanban,
   KeyRound,
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   MailPlus,
   Receipt,
   Sparkles,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -37,6 +39,7 @@ export const crmNavGroups: CrmNavGroup[] = [
     label: "Sell",
     items: [
       { label: "Pipeline", href: "/crm/pipeline", icon: Kanban },
+      { label: "Bulk Leads", href: "/crm/leads", icon: Target },
       { label: "Contacts", href: "/crm/contacts", icon: Users },
       { label: "Companies", href: "/crm/companies", icon: Building2 },
     ],
@@ -44,6 +47,7 @@ export const crmNavGroups: CrmNavGroup[] = [
   {
     label: "Deliver",
     items: [
+      { label: "Clients", href: "/crm/portal", icon: Handshake },
       { label: "Tasks", href: "/crm/tasks", icon: ListChecks },
       { label: "Calendar", href: "/crm/calendar", icon: CalendarDays },
       { label: "Websites", href: "/crm/websites", icon: Globe },

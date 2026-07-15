@@ -104,6 +104,40 @@ export async function inviteTeamMemberUser(input: {
   }
 }
 
+/**
+ * Which portal users haven't accepted their invite yet (never signed in).
+ * Only auth.users knows this, so it runs through the admin API.
+ */
+export async function pendingClientInvites(
+  workspaceId: string,
+): Promise<{ ok: boolean; pending?: string[]; error?: string }> {
+  try {
+    const callerId = await requireAdmin(workspaceId);
+    if (!callerId) {
+      return { ok: false, error: "Only workspace admins can view invite status." };
+    }
+    const admin = createAdminClient();
+    const { data: members, error } = await admin
+      .from("company_members")
+      .select("user_id")
+      .eq("workspace_id", workspaceId);
+    if (error) return { ok: false, error: error.message };
+
+    const ids = [...new Set((members ?? []).map((m) => m.user_id))];
+    const pending: string[] = [];
+    for (const id of ids) {
+      const { data } = await admin.auth.admin.getUserById(id);
+      if (data.user && !data.user.last_sign_in_at) pending.push(id);
+    }
+    return { ok: true, pending };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Status lookup failed.",
+    };
+  }
+}
+
 export async function inviteClientUser(input: {
   workspaceId: string;
   companyId: string;

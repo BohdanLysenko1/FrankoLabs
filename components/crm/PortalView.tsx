@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Check,
   ExternalLink,
@@ -10,6 +10,7 @@ import {
   Send,
 } from "lucide-react";
 import { useCrm } from "@/lib/crm/store";
+import { pendingClientInvites } from "@/lib/actions/invites";
 import { initials } from "@/lib/crm/types";
 import {
   PORTAL_TOOLS,
@@ -129,6 +130,26 @@ export default function PortalView() {
   const clients = state.companies.filter((c) => c.isClient);
   const prospects = state.companies.filter((c) => !c.isClient);
 
+  // Portal users who haven't accepted their invite yet (auth-side truth,
+  // fetched server-side). Refreshes whenever the member list changes —
+  // sending an invite inserts a company_member, so the chip flips live.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const clientUserKey = useMemo(
+    () => state.clientUsers.map((u) => u.userId).sort().join(","),
+    [state.clientUsers],
+  );
+  const workspaceId = state.workspace.id;
+  useEffect(() => {
+    if (mode !== "db" || !workspaceId) return;
+    let cancelled = false;
+    void pendingClientInvites(workspaceId).then((result) => {
+      if (!cancelled && result.ok) setPendingIds(new Set(result.pending));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, workspaceId, clientUserKey]);
+
   const toggleTool = (companyId: string, entitled: string[], toolId: string) => {
     const next = entitled.includes(toolId)
       ? entitled.filter((id) => id !== toolId)
@@ -139,11 +160,11 @@ export default function PortalView() {
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-4 pb-16 md:p-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Client portal</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
         <p className="mt-1 max-w-xl text-base leading-relaxed text-ink-dim">
-          Every client signs in at the main site and gets their own desktop —
-          projects, invoices and support, fed live by this CRM. Preview any
-          portal or invite the client by email.
+          Create portal accounts and choose the tools each client gets. Every
+          client signs in at the main site and lands on their own desktop —
+          projects, invoices and support, fed live by this CRM.
         </p>
       </div>
 
@@ -156,7 +177,10 @@ export default function PortalView() {
             const portalUsers = state.clientUsers.filter(
               (u) => u.companyId === c.id,
             );
-            const activated = portalUsers.length > 0;
+            const activated =
+              portalUsers.length > 0 &&
+              portalUsers.some((u) => !pendingIds.has(u.userId));
+            const invitePending = portalUsers.length > 0 && !activated;
             return (
               <Card key={c.id} className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -179,23 +203,29 @@ export default function PortalView() {
                               ? "Demo portal — one click opens it from the sign-in screen"
                               : activated
                                 ? `Signed-in access: ${portalUsers.map((u) => u.email).join(", ")}`
-                                : "No portal account yet — send an email invite"
+                                : invitePending
+                                  ? `Invite sent — waiting for ${portalUsers.map((u) => u.email).join(", ")} to set a password`
+                                  : "No portal account yet — send an email invite"
                           }
                           className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
                             mode === "demo" || activated
                               ? "border-accent/30 bg-accent-dim text-accent"
-                              : "border-edge text-ink-faint"
+                              : invitePending
+                                ? "border-warn/40 text-warn"
+                                : "border-edge text-ink-faint"
                           }`}
                         >
                           {mode === "demo"
                             ? "Demo"
                             : activated
                               ? "Active"
-                              : "Not invited"}
+                              : invitePending
+                                ? "Invited"
+                                : "Not invited"}
                         </span>
                       </p>
                       <p className="truncate text-xs text-ink-faint">
-                        {activated
+                        {portalUsers.length > 0
                           ? portalUsers.map((u) => u.email).join(", ")
                           : contact
                             ? `${contact.name} · ${contact.email}`
@@ -204,12 +234,14 @@ export default function PortalView() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    {mode === "db" && activated && (
+                    {mode === "db" && portalUsers.length > 0 && (
                       <button
                         onClick={() => {
                           if (
                             window.confirm(
-                              `Revoke ${c.name}'s portal access? Their account keeps existing, but it loses access to this portal until you invite them again.`,
+                              invitePending
+                                ? `Cancel ${c.name}'s pending invite? The link they received stops granting portal access.`
+                                : `Revoke ${c.name}'s portal access? Their account keeps existing, but it loses access to this portal until you invite them again.`,
                             )
                           ) {
                             void actions.revokeClientAccess(c.id);
@@ -219,7 +251,7 @@ export default function PortalView() {
                         className="flex items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
                       >
                         <KeyRound className="size-3.5" />
-                        Revoke access
+                        {invitePending ? "Cancel invite" : "Revoke access"}
                       </button>
                     )}
                     <a
@@ -274,14 +306,37 @@ export default function PortalView() {
       </div>
 
       {prospects.length > 0 && (
-        <Card className="flex items-start gap-3.5 p-5">
-          <MailPlus className="mt-0.5 size-5 shrink-0 text-ink-faint" strokeWidth={1.75} />
-          <p className="text-base leading-relaxed text-ink-dim">
-            {`${prospects.length} ${prospects.length === 1 ? "company" : "companies"}`}{" "}
-            in the pipeline {prospects.length === 1 ? "isn't a client" : "aren't clients"}{" "}
-            yet — win the deal and their portal switches on from here.
+        <div>
+          <SectionLabel>Not clients yet</SectionLabel>
+          <Card className="mt-3 divide-y divide-edge">
+            {prospects.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between gap-3 px-5 py-3.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{c.name}</p>
+                  <p className="truncate text-xs text-ink-faint">
+                    {c.industry || c.domain || "In the pipeline"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => actions.updateCompany(c.id, { isClient: true })}
+                  title={`Turn on ${c.name}'s portal — you can invite them right after`}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge bg-surface-2 px-3 py-1.5 text-xs text-ink-dim transition hover:border-edge-strong hover:text-ink"
+                >
+                  <MailPlus className="size-3.5" />
+                  Make client
+                </button>
+              </div>
+            ))}
+          </Card>
+          <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+            Making a company a client switches on their portal so you can send
+            the invite and pick their tools above. Winning a deal does this
+            automatically.
           </p>
-        </Card>
+        </div>
       )}
     </div>
   );

@@ -29,6 +29,7 @@ import {
   type DeliverableKind,
   type DocArticle,
   type Invoice,
+  type Lead,
   type OpenRequest,
   type PlanId,
   type Stage,
@@ -88,6 +89,9 @@ type Action =
   | { type: "add-contact"; contact: Contact }
   | { type: "update-contact"; id: string; patch: Partial<Contact> }
   | { type: "delete-contact"; id: string }
+  | { type: "add-leads"; leads: Lead[] }
+  | { type: "update-leads"; ids: string[]; patch: Partial<Lead> }
+  | { type: "delete-leads"; ids: string[] }
   | { type: "add-company"; company: Company }
   | { type: "update-company"; id: string; patch: Partial<Company> }
   | { type: "delete-company"; id: string }
@@ -141,6 +145,7 @@ function emptyState(base: CrmState): CrmState {
     ...base,
     companies: [],
     contacts: [],
+    leads: [],
     deals: [],
     tasks: [],
     activities: [],
@@ -212,6 +217,21 @@ function reducer(state: CrmState, action: Action): CrmState {
           e.contactId === action.id ? { ...e, contactId: null } : e,
         ),
       };
+    case "add-leads":
+      return { ...state, leads: [...action.leads, ...state.leads] };
+    case "update-leads": {
+      const ids = new Set(action.ids);
+      return {
+        ...state,
+        leads: state.leads.map((l) =>
+          ids.has(l.id) ? { ...l, ...action.patch } : l,
+        ),
+      };
+    }
+    case "delete-leads": {
+      const ids = new Set(action.ids);
+      return { ...state, leads: state.leads.filter((l) => !ids.has(l.id)) };
+    }
     case "add-company":
       return { ...state, companies: [action.company, ...state.companies] };
     case "update-company":
@@ -517,6 +537,113 @@ export type LogActivityInput = {
 
 export type InviteResult = { ok: boolean; error?: string };
 
+export type NewLeadInput = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  company?: string;
+  website?: string;
+  source?: string;
+  tags?: string[];
+  notes?: string;
+};
+
+/**
+ * Materialize import rows into Leads, skipping blanks and emails already on
+ * the list — bulk pastes routinely overlap earlier imports. createdAt steps
+ * down per row so newest-first views keep the file's order.
+ */
+function buildNewLeads(inputs: NewLeadInput[], existing: Lead[]): Lead[] {
+  const seen = new Set(
+    existing.filter((l) => l.email).map((l) => l.email.toLowerCase()),
+  );
+  const now = Date.now();
+  const out: Lead[] = [];
+  for (const input of inputs) {
+    const name = input.name?.trim() ?? "";
+    const email = input.email?.trim() ?? "";
+    if (!name && !email) continue;
+    if (email && seen.has(email.toLowerCase())) continue;
+    if (email) seen.add(email.toLowerCase());
+    out.push({
+      id: uid(),
+      name,
+      email,
+      phone: input.phone?.trim() ?? "",
+      role: input.role?.trim() ?? "",
+      company: input.company?.trim() ?? "",
+      website: input.website?.trim() ?? "",
+      source: input.source?.trim() ?? "",
+      status: "new",
+      tags: input.tags ?? [],
+      notes: input.notes?.trim() ?? "",
+      lastContactedAt: null,
+      convertedContactId: null,
+      createdAt: now - out.length,
+    });
+  }
+  return out;
+}
+
+/** Partial Lead -> snake_case row patch for the db engine's updates. */
+function leadPatchRow(patch: Partial<Lead>) {
+  return {
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.email !== undefined && { email: patch.email }),
+    ...(patch.phone !== undefined && { phone: patch.phone }),
+    ...(patch.role !== undefined && { role: patch.role }),
+    ...(patch.company !== undefined && { company: patch.company }),
+    ...(patch.website !== undefined && { website: patch.website }),
+    ...(patch.source !== undefined && { source: patch.source }),
+    ...(patch.status !== undefined && { status: patch.status }),
+    ...(patch.tags !== undefined && { tags: patch.tags }),
+    ...(patch.notes !== undefined && { notes: patch.notes }),
+    ...(patch.lastContactedAt !== undefined && {
+      last_contacted_at:
+        patch.lastContactedAt === null
+          ? null
+          : new Date(patch.lastContactedAt).toISOString(),
+    }),
+    ...(patch.convertedContactId !== undefined && {
+      converted_contact_id: patch.convertedContactId,
+    }),
+  };
+}
+
+/** What converting a lead creates: reuse a company by name or add a shell. */
+function conversionPlan(lead: Lead, companies: Company[]) {
+  const label = lead.company.trim();
+  const existing = label
+    ? companies.find((c) => c.name.toLowerCase() === label.toLowerCase())
+    : undefined;
+  const newCompany: Company | null =
+    label && !existing
+      ? {
+          id: uid(),
+          name: label,
+          domain: lead.website.trim(),
+          industry: "",
+          location: "",
+          isClient: false,
+          notes: "",
+        }
+      : null;
+  const contact: Contact = {
+    id: uid(),
+    name: lead.name || lead.email,
+    email: lead.email,
+    phone: lead.phone,
+    role: lead.role,
+    companyId: existing?.id ?? newCompany?.id ?? null,
+    hue: Math.floor(Math.random() * 360),
+    tags: lead.tags.includes("lead") ? lead.tags : [...lead.tags, "lead"],
+    createdAt: Date.now(),
+    notes: lead.notes,
+  };
+  return { newCompany, contact };
+}
+
 /** In-memory plaintext for demo vault items created this session. */
 const demoSecrets = new Map<string, string>(Object.entries(DEMO_VAULT_SECRETS));
 
@@ -651,6 +778,37 @@ function buildDemoActions(dispatch: React.Dispatch<Action>, state: CrmState) {
     updateContact: (id: string, patch: Partial<Contact>) =>
       dispatch({ type: "update-contact", id, patch }),
     deleteContact: (id: string) => dispatch({ type: "delete-contact", id }),
+
+    addLeads: (inputs: NewLeadInput[]) => {
+      const leads = buildNewLeads(inputs, state.leads);
+      if (leads.length > 0) dispatch({ type: "add-leads", leads });
+      return leads;
+    },
+    updateLead: (id: string, patch: Partial<Lead>) =>
+      dispatch({ type: "update-leads", ids: [id], patch }),
+    updateLeads: (ids: string[], patch: Partial<Lead>) =>
+      dispatch({ type: "update-leads", ids, patch }),
+    deleteLeads: (ids: string[]) => dispatch({ type: "delete-leads", ids }),
+    /** Graduate a lead into a real contact (and company, if new). */
+    convertLead: (id: string) => {
+      const lead = state.leads.find((l) => l.id === id);
+      if (!lead || lead.status === "converted") return null;
+      const { newCompany, contact } = conversionPlan(lead, state.companies);
+      if (newCompany) dispatch({ type: "add-company", company: newCompany });
+      dispatch({ type: "add-contact", contact });
+      dispatch({
+        type: "update-leads",
+        ids: [id],
+        patch: { status: "converted", convertedContactId: contact.id },
+      });
+      logActivity({
+        type: "system",
+        summary: `Lead converted to contact: ${contact.name}${lead.company ? ` (${lead.company})` : ""}.`,
+        contactId: contact.id,
+        companyId: contact.companyId,
+      });
+      return contact;
+    },
 
     addCompany: (input: Omit<Company, "id">) => {
       const company: Company = { ...input, id: uid() };
@@ -1454,6 +1612,7 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
             "events",
             "tasks",
             "activities",
+            "leads",
             "contacts",
             "companies",
             "vault_items",
@@ -1541,6 +1700,111 @@ function buildDbActions(ctx: DbActionCtx): CrmActions {
     deleteContact: (id) => {
       local({ type: "delete-contact", id });
       write(() => db.from("contacts").delete().eq("id", id));
+    },
+
+    addLeads: (inputs) => {
+      const leads = buildNewLeads(inputs, getState().leads);
+      if (leads.length === 0) return leads;
+      local({ type: "add-leads", leads });
+      void (async () => {
+        try {
+          const rows = leads.map((l) => ({
+            id: l.id,
+            workspace_id: ws(),
+            name: l.name,
+            email: l.email,
+            phone: l.phone,
+            role: l.role,
+            company: l.company,
+            website: l.website,
+            source: l.source,
+            status: l.status,
+            tags: l.tags,
+            notes: l.notes,
+            created_at: iso(l.createdAt),
+          }));
+          // Bulk pastes can run to thousands of rows — insert in batches.
+          for (let i = 0; i < rows.length; i += 200) {
+            const { error } = await db.from("leads").insert(rows.slice(i, i + 200));
+            if (error) throw new Error(error.message);
+          }
+        } catch (err) {
+          console.error("addLeads:", err);
+          void refresh();
+        }
+      })();
+      return leads;
+    },
+    updateLead: (id, patch) => {
+      local({ type: "update-leads", ids: [id], patch });
+      write(() => db.from("leads").update(leadPatchRow(patch)).eq("id", id));
+    },
+    updateLeads: (ids, patch) => {
+      if (ids.length === 0) return;
+      local({ type: "update-leads", ids, patch });
+      write(() => db.from("leads").update(leadPatchRow(patch)).in("id", ids));
+    },
+    deleteLeads: (ids) => {
+      if (ids.length === 0) return;
+      local({ type: "delete-leads", ids });
+      write(() => db.from("leads").delete().in("id", ids));
+    },
+    convertLead: (id) => {
+      const lead = getState().leads.find((l) => l.id === id);
+      if (!lead || lead.status === "converted") return null;
+      const { newCompany, contact } = conversionPlan(lead, getState().companies);
+      if (newCompany) local({ type: "add-company", company: newCompany });
+      local({ type: "add-contact", contact });
+      local({
+        type: "update-leads",
+        ids: [id],
+        patch: { status: "converted", convertedContactId: contact.id },
+      });
+      void (async () => {
+        try {
+          if (newCompany) {
+            const { error } = await db.from("companies").insert({
+              id: newCompany.id,
+              workspace_id: ws(),
+              name: newCompany.name,
+              domain: newCompany.domain,
+              industry: newCompany.industry,
+              location: newCompany.location,
+              is_client: newCompany.isClient,
+              notes: newCompany.notes,
+            });
+            if (error) throw new Error(error.message);
+          }
+          const contactRes = await db.from("contacts").insert({
+            id: contact.id,
+            workspace_id: ws(),
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone,
+            role: contact.role,
+            company_id: contact.companyId,
+            hue: contact.hue,
+            tags: contact.tags,
+            notes: contact.notes,
+          });
+          if (contactRes.error) throw new Error(contactRes.error.message);
+          const leadRes = await db
+            .from("leads")
+            .update({ status: "converted", converted_contact_id: contact.id })
+            .eq("id", id);
+          if (leadRes.error) throw new Error(leadRes.error.message);
+        } catch (err) {
+          console.error("convertLead:", err);
+          void refresh();
+        }
+      })();
+      logActivity({
+        type: "system",
+        summary: `Lead converted to contact: ${contact.name}${lead.company ? ` (${lead.company})` : ""}.`,
+        contactId: contact.id,
+        companyId: contact.companyId,
+      });
+      return contact;
     },
 
     addCompany: (input) => {

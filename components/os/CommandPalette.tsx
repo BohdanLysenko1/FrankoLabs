@@ -21,6 +21,7 @@ import {
   Search,
   Sparkles,
   SunMoon,
+  Target,
   UserPlus,
   Users,
   type LucideIcon,
@@ -277,8 +278,22 @@ export default function CommandPalette({
             id: "new-contact",
             label: "New Contact",
             icon: UserPlus,
-            keywords: ["person", "lead"],
+            keywords: ["person"],
             perform: openRecord("/crm/contacts", { kind: "new-contact" }),
+          },
+          {
+            id: "new-lead",
+            label: "New Lead",
+            icon: Target,
+            keywords: ["outreach", "cold", "prospect"],
+            perform: openRecord("/crm/leads", { kind: "new-lead" }),
+          },
+          {
+            id: "import-leads",
+            label: "Import Leads",
+            icon: Target,
+            keywords: ["bulk", "csv", "paste", "outreach", "list"],
+            perform: openRecord("/crm/leads", { kind: "import-leads" }),
           },
           {
             id: "new-task",
@@ -375,6 +390,17 @@ export default function CommandPalette({
           hint: c.role,
           keywords: ["contact", c.email],
           perform: openRecord("/crm/contacts", { kind: "contact", id: c.id }),
+        })),
+      });
+      result.push({
+        heading: "Leads",
+        entries: state.leads.map((l) => ({
+          id: `lead-${l.id}`,
+          label: l.name || l.email,
+          icon: Target,
+          hint: l.company || l.status,
+          keywords: ["lead", "outreach", l.email, l.company],
+          perform: openRecord("/crm/leads", { kind: "lead", id: l.id }),
         })),
       });
       result.push({

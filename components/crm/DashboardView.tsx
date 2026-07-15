@@ -17,6 +17,7 @@ import {
   PackageOpen,
   Phone,
   Receipt,
+  Target,
   Users,
   Zap,
 } from "lucide-react";
@@ -211,6 +212,35 @@ export default function DashboardView() {
         href: "/crm/contracts",
       });
     }
+    const replied = state.leads.filter((l) => l.status === "replied");
+    if (replied.length > 0) {
+      items.push({
+        id: "leads-replied",
+        icon: Target,
+        tone: "text-accent",
+        text:
+          replied.length === 1
+            ? `${replied[0].name || replied[0].email} replied to your outreach — keep it warm`
+            : `${replied.length} leads replied to your outreach — keep them warm`,
+        hint: "leads",
+        href: "/crm/leads",
+      });
+    }
+    const staleLeads = state.leads.filter(
+      (l) =>
+        l.status === "contacted" &&
+        (l.lastContactedAt ?? 0) < now - 7 * DAY,
+    );
+    if (staleLeads.length > 0) {
+      items.push({
+        id: "leads-stale",
+        icon: Target,
+        tone: "text-warn",
+        text: `${staleLeads.length} contacted lead${staleLeads.length === 1 ? "" : "s"} with no touch in a week`,
+        hint: "leads",
+        href: "/crm/leads",
+      });
+    }
     for (const d of m.inReview) {
       items.push({
         id: `del-${d.id}`,
@@ -232,7 +262,7 @@ export default function DashboardView() {
       });
     }
     return items.slice(0, 8);
-  }, [m, pulse.signals, state.companies, now]);
+  }, [m, pulse.signals, state.companies, state.leads, now]);
 
   const todayPlan = useMemo(() => {
     const dayStart = new Date(now);

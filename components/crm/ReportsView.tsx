@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   Clock,
   Percent,
+  Target,
   TrendingUp,
 } from "lucide-react";
 import { useCrm, useCrmLookups } from "@/lib/crm/store";
@@ -119,6 +120,54 @@ export default function ReportsView() {
 
     return { wonValue, winRate, avgDeal, avgCycle, months, maxMonth, funnel, maxFunnel, bySource };
   }, [state.deals, state.stages, stageById, now]);
+
+  // Cold-outreach funnel: each rung counts leads at that step or further.
+  const outreach = useMemo(() => {
+    const leads = state.leads;
+    const past = (statuses: string[]) =>
+      leads.filter((l) => statuses.includes(l.status)).length;
+    const contacted = past(["contacted", "replied", "qualified", "converted"]);
+    const replied = past(["replied", "qualified", "converted"]);
+    const qualified = past(["qualified", "converted"]);
+    const converted = past(["converted"]);
+    const rungs = [
+      { label: "Leads", count: leads.length },
+      { label: "Contacted", count: contacted },
+      { label: "Replied", count: replied },
+      { label: "Qualified", count: qualified },
+      { label: "Converted", count: converted },
+    ];
+
+    const sources = [...new Set(leads.map((l) => l.source || "No source"))];
+    const bySource = sources
+      .map((source) => {
+        const of = leads.filter((l) => (l.source || "No source") === source);
+        const c = of.filter((l) =>
+          ["contacted", "replied", "qualified", "converted"].includes(l.status),
+        ).length;
+        const r = of.filter((l) =>
+          ["replied", "qualified", "converted"].includes(l.status),
+        ).length;
+        return {
+          source,
+          total: of.length,
+          contacted: c,
+          replied: r,
+          replyRate: c === 0 ? 0 : Math.round((r / c) * 100),
+          converted: of.filter((l) => l.status === "converted").length,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      rungs,
+      max: Math.max(1, leads.length),
+      replyRate: contacted === 0 ? 0 : Math.round((replied / contacted) * 100),
+      conversionRate:
+        leads.length === 0 ? 0 : Math.round((converted / leads.length) * 100),
+      bySource,
+    };
+  }, [state.leads]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
@@ -259,6 +308,77 @@ export default function ReportsView() {
           )}
         </div>
       </Card>
+
+      {/* Cold outreach */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <SectionLabel>Outreach funnel</SectionLabel>
+            <span className="flex items-center gap-1.5 text-xs text-ink-dim">
+              <Target className="size-3.5" />
+              {outreach.replyRate}% reply · {outreach.conversionRate}% converted
+            </span>
+          </div>
+          <div className="mt-5 space-y-3.5">
+            {outreach.rungs.map((r) => (
+              <div key={r.label}>
+                <div className="mb-1 flex items-baseline justify-between text-sm">
+                  <span className="font-medium">{r.label}</span>
+                  <span className="font-mono text-xs tabular-nums text-ink-dim">
+                    {r.count}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+                  <div
+                    className="h-full rounded-full bg-accent/80"
+                    style={{
+                      width: `${Math.max(2, (r.count / outreach.max) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+            {outreach.rungs[0].count === 0 && (
+              <p className="py-6 text-center text-sm text-ink-faint">
+                Import leads and the funnel fills in as you work them.
+              </p>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <SectionLabel>Outreach by source</SectionLabel>
+          <div className="mt-4 divide-y divide-edge">
+            {outreach.bySource.map((s) => (
+              <div key={s.source} className="flex items-center gap-4 py-3.5">
+                <span className="w-36 shrink-0 truncate text-sm font-medium">
+                  {s.source}
+                </span>
+                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
+                  <div
+                    className={`h-full rounded-full ${s.replyRate >= 20 ? "bg-accent" : "bg-warn"}`}
+                    style={{ width: `${Math.max(2, s.replyRate)}%` }}
+                  />
+                </div>
+                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-ink-dim">
+                  {s.replyRate}%
+                </span>
+                <span className="hidden w-20 shrink-0 text-right font-mono text-xs tabular-nums text-ink-faint sm:block">
+                  {s.replied}/{s.contacted} rep.
+                </span>
+                <span className="hidden w-20 shrink-0 text-right font-mono text-xs tabular-nums text-ink-dim md:block">
+                  {s.converted} conv.
+                </span>
+              </div>
+            ))}
+            {outreach.bySource.length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-faint">
+                Reply rates per list show up once leads are imported.
+              </p>
+            )}
+          </div>
+        </Card>
+      </div>
 
       <p className="text-xs leading-relaxed text-ink-faint">
         Numbers update instantly as deals move through the pipeline. When

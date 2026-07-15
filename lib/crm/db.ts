@@ -25,6 +25,7 @@ import {
   type DocArticle,
   type DocSection,
   type Invoice,
+  type Lead,
   type SiteHealth,
   type Stage,
   type Task,
@@ -88,6 +89,25 @@ export function rowToContact(r: Tables<"contacts">): Contact {
     tags: r.tags,
     createdAt: ms(r.created_at),
     notes: r.notes,
+  };
+}
+
+export function rowToLead(r: Tables<"leads">): Lead {
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    role: r.role,
+    company: r.company,
+    website: r.website,
+    source: r.source,
+    status: r.status as Lead["status"],
+    tags: r.tags,
+    notes: r.notes,
+    lastContactedAt: msOrNull(r.last_contacted_at),
+    convertedContactId: r.converted_contact_id,
+    createdAt: ms(r.created_at),
   };
 }
 
@@ -389,6 +409,7 @@ function byAsc<T>(key: (x: T) => number) {
 const sortState = (state: CrmState): CrmState => ({
   ...state,
   contacts: [...state.contacts].sort(byDesc((c) => c.createdAt)),
+  leads: [...state.leads].sort(byDesc((l) => l.createdAt)),
   deals: [...state.deals].sort(byDesc((d) => d.createdAt)),
   tasks: [...state.tasks].sort(byDesc((t) => t.createdAt)),
   activities: [...state.activities].sort(byDesc((a) => a.at)),
@@ -420,6 +441,7 @@ export async function loadWorkspaceState(
     stagesRes,
     companiesRes,
     contactsRes,
+    leadsRes,
     dealsRes,
     tasksRes,
     activitiesRes,
@@ -444,6 +466,7 @@ export async function loadWorkspaceState(
     db.from("stages").select("*").eq("workspace_id", workspaceId).order("position"),
     db.from("companies").select("*").eq("workspace_id", workspaceId),
     db.from("contacts").select("*").eq("workspace_id", workspaceId),
+    db.from("leads").select("*").eq("workspace_id", workspaceId),
     db.from("deals").select("*").eq("workspace_id", workspaceId),
     db.from("tasks").select("*").eq("workspace_id", workspaceId),
     db
@@ -516,6 +539,7 @@ export async function loadWorkspaceState(
     stages: (stagesRes.data ?? []).map(rowToStage),
     companies: (companiesRes.data ?? []).map(rowToCompany),
     contacts: (contactsRes.data ?? []).map(rowToContact),
+    leads: (leadsRes.data ?? []).map(rowToLead),
     deals: (dealsRes.data ?? []).map(rowToDeal),
     tasks: (tasksRes.data ?? []).map(rowToTask),
     activities: (activitiesRes.data ?? []).map(rowToActivity),
@@ -663,6 +687,15 @@ export function applyChange(
         contacts: del
           ? removeBy(state.contacts, id, (c) => c.id)
           : upsertBy(state.contacts, rowToContact(newRow as Tables<"contacts">), (c) => c.id),
+      });
+    case "leads":
+      return ok({
+        ...state,
+        leads: del
+          ? removeBy(state.leads, id, (l) => l.id)
+          : upsertBy(state.leads, rowToLead(newRow as Tables<"leads">), (l) => l.id).sort(
+              (a, b) => b.createdAt - a.createdAt,
+            ),
       });
     case "deals":
       return ok({
@@ -835,6 +868,7 @@ export const REALTIME_TABLES = [
   "stages",
   "companies",
   "contacts",
+  "leads",
   "deals",
   "tasks",
   "activities",
@@ -954,6 +988,33 @@ export async function importWorkspaceData(
       tags: c.tags,
       notes: c.notes,
       created_at: iso(c.createdAt),
+    })),
+  );
+
+  await insertAll(
+    db,
+    "leads",
+    (data.leads ?? []).map((l) => ({
+      id: remap(l.id),
+      workspace_id: workspaceId,
+      name: l.name,
+      email: l.email,
+      phone: l.phone,
+      role: l.role,
+      company: l.company,
+      website: l.website,
+      source: l.source,
+      status: l.status,
+      tags: l.tags,
+      notes: l.notes,
+      last_contacted_at: isoOrNull(l.lastContactedAt),
+      // Only link if the contact came along in the payload — a fabricated
+      // uuid would trip the FK.
+      converted_contact_id:
+        l.convertedContactId && idMap.has(l.convertedContactId)
+          ? remap(l.convertedContactId)
+          : null,
+      created_at: iso(l.createdAt),
     })),
   );
 

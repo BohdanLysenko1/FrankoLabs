@@ -41,6 +41,48 @@ export type Contact = {
   notes: string;
 };
 
+export type LeadStatus =
+  | "new"
+  | "contacted"
+  | "replied"
+  | "qualified"
+  | "disqualified"
+  | "converted";
+
+export const LEAD_STATUSES: LeadStatus[] = [
+  "new",
+  "contacted",
+  "replied",
+  "qualified",
+  "disqualified",
+  "converted",
+];
+
+/**
+ * A cold-outreach prospect — bulk-imported and worked through outreach before
+ * it earns a place in Contacts/Companies. Company stays a plain label here;
+ * converting a lead is what creates the real records.
+ */
+export type Lead = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  /** Company name as imported — not linked to the companies table. */
+  company: string;
+  website: string;
+  /** Where the list came from — "LinkedIn", "Apollo export", a conference. */
+  source: string;
+  status: LeadStatus;
+  tags: string[];
+  notes: string;
+  lastContactedAt: number | null;
+  /** Set when the lead graduates into a real contact. */
+  convertedContactId: string | null;
+  createdAt: number;
+};
+
 export type Deal = {
   id: string;
   name: string;
@@ -130,8 +172,11 @@ export type OpenRequest = {
     | "company"
     | "deal"
     | "doc"
+    | "lead"
     | "new-deal"
     | "new-contact"
+    | "new-lead"
+    | "import-leads"
     | "new-task"
     | "new-event"
     | "new-proposal";
@@ -405,6 +450,8 @@ export type CrmState = {
   stages: Stage[];
   companies: Company[];
   contacts: Contact[];
+  /** Cold-outreach prospects — separate from contacts until converted. */
+  leads: Lead[];
   deals: Deal[];
   tasks: Task[];
   activities: Activity[];

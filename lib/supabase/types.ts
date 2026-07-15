@@ -812,6 +812,75 @@ export type Database = {
           },
         ]
       }
+      leads: {
+        Row: {
+          company: string
+          converted_contact_id: string | null
+          created_at: string
+          email: string
+          id: string
+          last_contacted_at: string | null
+          name: string
+          notes: string
+          phone: string
+          role: string
+          source: string
+          status: string
+          tags: string[]
+          website: string
+          workspace_id: string
+        }
+        Insert: {
+          company?: string
+          converted_contact_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          last_contacted_at?: string | null
+          name?: string
+          notes?: string
+          phone?: string
+          role?: string
+          source?: string
+          status?: string
+          tags?: string[]
+          website?: string
+          workspace_id: string
+        }
+        Update: {
+          company?: string
+          converted_contact_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          last_contacted_at?: string | null
+          name?: string
+          notes?: string
+          phone?: string
+          role?: string
+          source?: string
+          status?: string
+          tags?: string[]
+          website?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_converted_contact_id_fkey"
+            columns: ["converted_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

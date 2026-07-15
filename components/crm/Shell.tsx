@@ -12,7 +12,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Command,
-  Eye,
   LockKeyhole,
   LogOut,
   RotateCcw,
@@ -200,12 +199,9 @@ export default function Shell({ children }: { children: ReactNode }) {
   // Signed in but no workspace yet — create one.
   if (!state.onboarded) return <Onboarding />;
 
-  const inPortal = pathname.startsWith("/crm/portal");
-
   return (
     <div className="crm-shell flex h-dvh bg-desktop text-[15px] leading-relaxed">
-      {!inPortal && (
-        <aside className="crm-sidebar hidden w-60 shrink-0 flex-col border-r border-edge bg-surface/90 md:flex">
+      <aside className="crm-sidebar hidden w-60 shrink-0 flex-col border-r border-edge bg-surface/90 md:flex">
           <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
             <LogoMark className="h-6 w-auto" />
             <div className="min-w-0">
@@ -253,13 +249,6 @@ export default function Shell({ children }: { children: ReactNode }) {
           </nav>
           <div className="space-y-0.5 border-t border-edge p-3">
             <Link
-              href="/crm/portal"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-dim transition hover:bg-surface-2 hover:text-ink"
-            >
-              <Eye className="size-4.5" strokeWidth={1.75} />
-              View as client
-            </Link>
-            <Link
               href="/crm/settings"
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                 isActive(pathname, "/crm/settings")
@@ -275,11 +264,9 @@ export default function Shell({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </aside>
-      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!inPortal && (
-          <header className="crm-topbar flex h-14 shrink-0 items-center gap-3 border-b border-edge bg-surface/90 px-4 md:px-6">
+        <header className="crm-topbar flex h-14 shrink-0 items-center gap-3 border-b border-edge bg-surface/90 px-4 md:px-6">
             <div className="flex items-center gap-2.5 md:hidden">
               <LogoMark className="h-5 w-auto" />
               <span className="text-sm font-semibold tracking-tight">
@@ -315,13 +302,11 @@ export default function Shell({ children }: { children: ReactNode }) {
               <UserMenu />
             </div>
           </header>
-        )}
         <main className="os-scroll min-h-0 flex-1 overflow-y-auto">
           {children}
         </main>
         {/* Mobile bottom nav */}
-        {!inPortal && (
-          <nav className="flex shrink-0 items-center justify-around border-t border-edge bg-surface/95 px-2 py-1.5 backdrop-blur-md md:hidden">
+        <nav className="flex shrink-0 items-center justify-around border-t border-edge bg-surface/95 px-2 py-1.5 backdrop-blur-md md:hidden">
             {mobileNav.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;
@@ -339,7 +324,6 @@ export default function Shell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-        )}
       </div>
       <ThemeDialog />
       <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} scope="crm" />
